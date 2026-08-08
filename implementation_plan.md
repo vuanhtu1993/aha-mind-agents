@@ -1,330 +1,120 @@
-# Kế Hoạch Triển Khai aha-mind:agents
-## Kiến Trúc: NestJS (Vercel) + BullMQ Worker (Railway) + MongoDB + LangGraph + Dashboard
+# Kế Hoạch Triển Khai Hệ Thống aha-mind-agents (v2 - Pragmatic Hybrid)
+
+Hệ thống Backend độc lập quản lý, điều phối và thực thi Multi-Agent Workflows theo mô hình **Plugin Architecture**, tối ưu hóa cho **Vercel Serverless + Direct SSE Streaming** (không phụ thuộc Redis/Worker ban đầu, sẵn sàng mở rộng khi cần).
 
 ---
 
-## 1. Tóm Tắt & Phạm Vi
+## 1. Điểm Khác Biệt Giữa v1 (Full Hybrid) và v2 (Pragmatic Hybrid)
 
-Hệ thống **`aha-mind:agents`** được thiết kế theo **5 tầng kiến trúc Production-Ready Agentic System** chuẩn mực, đảm nhận 100% nghiệp vụ Agent đang phân tán trong `aha-tools`, hoạt động theo mô hình **Hybrid Deployment**:
+> [!NOTE]
+> Bản kế hoạch v1 (Full Hybrid với BullMQ + Redis + Railway Worker) đã được lưu trữ an toàn tại [docs/implementation_plan_v1_full-hybrid.md](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/docs/implementation_plan_v1_full-hybrid.md) để tra cứu bất cứ lúc nào.
 
-- **API Gateway (NestJS):** Deploy trên Vercel Serverless — nhận request, trả JobID ngay lập tức, stream trạng thái job về Client qua SSE.
-- **Background Worker Pool:** Deploy trên Railway/Render Container — nhận Job từ Queue, chạy LangGraph Graph dài hạn không giới hạn thời gian.
-
----
-
-## 2. Phạm Vi Nghiệp Vụ (100% Business Coverage từ aha-tools)
-
-| Agent Engine | Pipeline | Endpoint Tương Ứng | Loại Xử Lý |
-| :--- | :--- | :--- | :--- |
-| Story Shadowing | Text Processing | `POST /agents/story-shadowing/process` | Long-running Worker (30-60s) |
-| Story Shadowing | YouTube Pipeline | `POST /agents/story-shadowing/youtube` | Long-running Worker (60-120s) |
-| Story Shadowing | Segment Suggester | `POST /agents/story-shadowing/suggest-segments` | Quick (~10s) |
-| Story Shadowing | Series Creator | `POST /agents/story-shadowing/create-series` | Long-running Worker |
-| Opta Predictor | Match Analysis & Prediction | `POST /agents/opta/predict` | Long-running Worker (30-60s) |
-| First Agent | Dynamic Tool Routing | `POST /agents/general/run` | Quick (~5-10s) |
+* **Kiến trúc v2:** Chạy trực tiếp In-Process trên Vercel Serverless kết hợp NestJS RxJS Observable SSE với cơ chế **Keep-Alive Heartbeat** (Ping mỗi 15s) và `maxDuration = 300s`.
+* **Ưu thế:** Tiết kiệm chi phí hạ tầng (0đ phát sinh), triển khai nhanh gấp 3 lần, loại bỏ hoàn toàn rủi ro kết nối giữa Gateway $\leftrightarrow$ Redis $\leftrightarrow$ Worker.
+* **Khả năng mở rộng:** Cấu trúc theo chuẩn **Plugin Architecture** (Core $\rightarrow$ Plugins $\rightarrow$ Tools). Khi cần scale lên hàng trăm user đồng thời, chỉ cần cắm thêm `QueueAdapter` mà không sửa đổi một dòng logic Agent nào!
 
 ---
 
-## 3. Kiến Trúc 5 Tầng (Architecture Layers)
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│         TẦNG 1: CLIENT / UI (aha-tools PWA + Admin Dashboard)  │
-└────────────────────────────┬───────────────────────────────────┘
-                             │ HTTP / SSE
-┌────────────────────────────▼───────────────────────────────────┐
-│    TẦNG 2: API GATEWAY (NestJS → Deploy trên Vercel)           │
-│  - AgentsController: nhận Job, trả JobID (202 Accepted)        │
-│  - StatusController: SSE stream trạng thái job                 │
-│  - DashboardController: REST API phục vụ Dashboard Admin       │
-└────────────────────────────┬───────────────────────────────────┘
-                             │ BullMQ Job Queue (Redis)
-┌────────────────────────────▼───────────────────────────────────┐
-│    TẦNG 3: BACKGROUND WORKER LAYER (Deploy trên Railway)       │
-│  - StoryShadowingWorker: Text + YouTube + Series Pipelines     │
-│  - OptaPredictorWorker: Data Fetch + Stats + Predict           │
-│  - GeneralAgentWorker: Tool Routing + Vocab Agent              │
-└──────┬──────────────────┬──────────────────────┬──────────────┘
-       │                  │                      │
-┌──────▼──────┐  ┌────────▼────────┐  ┌──────────▼─────────────┐
-│  TẦNG 4a:   │  │   TẦNG 4b:      │  │      TẦNG 5:           │
-│ Checkpointer│  │  Long-term      │  │   Tool Gateway Layer   │
-│ (Short-term)│  │  Store          │  │  (Cách ly Tool Calls)  │
-│  MongoDB    │  │  MongoDB        │  │  Gemini AI / TTS /     │
-│ (per-step   │  │  (User prefs,   │  │  Cheerio / ReadAbility │
-│  snapshots) │  │   session hist) │  │  / YouTube Transcript  │
-└─────────────┘  └─────────────────┘  └────────────────────────┘
-```
-
----
-
-## 4. Thiết Kế Cấu Trúc Thư Mục Chuẩn Hóa
-
-```
-aha-mind-agents/
-├── src/
-│   ├── main.ts
-│   ├── app.module.ts
-│   │
-│   ├── api/                          # Tầng 2: API Gateway Layer
-│   │   ├── agents/
-│   │   │   ├── agents.controller.ts  # POST nhận job, trả JobID
-│   │   │   ├── agents.module.ts
-│   │   │   └── dto/
-│   │   │       ├── story-shadowing.dto.ts
-│   │   │       └── opta-predict.dto.ts
-│   │   ├── status/
-│   │   │   └── status.controller.ts  # @Sse: stream job progress
-│   │   └── dashboard/
-│   │       └── dashboard.controller.ts
-│   │
-│   ├── workers/                      # Tầng 3: Background Worker Layer
-│   │   ├── story-shadowing.worker.ts
-│   │   ├── opta-predictor.worker.ts
-│   │   └── general-agent.worker.ts
-│   │
-│   ├── core/                         # Logic thuần — không phụ thuộc NestJS
-│   │   ├── graph/
-│   │   │   ├── story-shadowing/
-│   │   │   │   ├── graph.ts
-│   │   │   │   ├── state.ts
-│   │   │   │   ├── youtube-graph.ts
-│   │   │   │   └── nodes/
-│   │   │   │       ├── sentence-splitter.node.ts
-│   │   │   │       ├── tts-generator.node.ts
-│   │   │   │       ├── keyword-identifier.node.ts
-│   │   │   │       ├── keyword-enricher.node.ts
-│   │   │   │       ├── youtube-transcript-fetcher.node.ts
-│   │   │   │       ├── youtube-sentence-consolidator.node.ts
-│   │   │   │       └── youtube-segment-suggester.node.ts
-│   │   │   └── opta/
-│   │   │       ├── graph.ts
-│   │   │       ├── state.ts
-│   │   │       └── nodes/
-│   │   │           ├── data-fetcher.node.ts
-│   │   │           ├── stats-analyzer.node.ts
-│   │   │           ├── expert-opinion.node.ts
-│   │   │           └── predictor.node.ts
-│   │   │
-│   │   ├── tools/                    # Tầng 5: Tool Gateway Layer
-│   │   │   ├── tts.tool.ts           # Google TTS abstraction
-│   │   │   ├── gemini.tool.ts        # Gemini API gateway
-│   │   │   ├── scraper.tool.ts       # Cheerio / Readability
-│   │   │   └── youtube.tool.ts       # youtube-transcript wrapper
-│   │   │
-│   │   └── state.ts                  # Shared State Schemas (Zod)
-│   │
-│   ├── infra/                        # Tầng 4: Persistence & Memory
-│   │   ├── database.module.ts        # MongoDB Atlas connection config
-│   │   ├── checkpointer/
-│   │   │   └── mongo-checkpointer.ts # LangGraph Checkpointer per-step
-│   │   └── store/
-│   │       └── long-term-store.ts    # Cross-session memory store
-│   │
-│   └── common/                       # Utilities dùng chung
-│       ├── interceptors/
-│       │   └── agent-logger.interceptor.ts
-│       └── schemas/
-│           └── agent-execution-log.schema.ts
-│
-├── api/
-│   └── index.ts                      # Vercel Serverless Entry Point
-│
-└── vercel.json                       # Vercel routing & maxDuration config
-```
-
----
-
-## 5. Thiết Kế Luồng Dữ Liệu (Data Flow) — Trường Hợp YouTube Pipeline
+## 2. Các Giai Đoạn Triển Khai Chi Tiết
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Học viên (aha-tools PWA)
-    participant API as API Gateway (Vercel/NestJS)
-    participant Queue as BullMQ Queue (Redis)
-    participant Worker as YouTube Worker (Railway)
-    participant Checkpoint as MongoDB Checkpointer
-    participant SSE as SSE Status Stream
-
-    User->>API: POST /agents/story-shadowing/youtube { youtubeUrl }
-    API->>Queue: Enqueue Job { jobId, youtubeUrl, userId }
-    API-->>User: HTTP 202 { jobId } — Phản hồi ngay lập tức
-
-    User->>SSE: Kết nối GET /status/stream?jobId=xxx
-    Note over Queue,Worker: Xử lý nền — Không giới hạn thời gian
-
-    Queue->>Worker: Dequeue Job
-    Worker->>Checkpoint: Snapshot State sau mỗi Node
-    Worker->>SSE: Publish { step: 'transcript_fetcher', status: 'running' }
-    Worker->>SSE: Publish { step: 'transcript_fetcher', status: 'completed' }
-    Worker->>SSE: Publish { step: 'consolidator', status: 'running' }
-    Worker->>SSE: Publish { step: 'consolidator', status: 'completed' }
-    Worker->>SSE: Publish { step: 'enricher', status: 'completed' }
-
-    Worker->>Checkpoint: Lưu Final Result vào MongoDB
-    Worker->>SSE: Publish { status: 'DONE', resultId: 'xxx' }
-    SSE-->>User: Stream trạng thái hoàn tất
-    User->>API: GET /agents/story-shadowing/result/:resultId
-    API-->>User: Trả về toàn bộ bài học Shadowing
+graph TD
+    P1["✅ Giai đoạn 1: Khởi Tạo Dự Án & Framework NestJS\n(ĐÃ HOÀN THÀNH 100%)"] --> P2["Giai đoạn 2: Tầng Cơ Sở Dữ Liệu & Core Services\n(Mongoose, Schemas, Gemini 6-Keys Rotator)"]
+    P2 --> P3["Giai đoạn 3: Khung Plugin & Shared Tool Gateway\n(PluginRegistry, Gemini Tool, TTS Tool, YouTube Tool)"]
+    P3 --> P4["Giai đoạn 4: Story Shadowing Agent Plugin\n(Text Pipeline + YouTube Pipeline + LangGraph)"]
+    P4 --> P5["Giai đoạn 5: Unified Agent Controller & Real-Time SSE\n(POST /agents/:id/:pipeline + Keep-Alive Heartbeat)"]
+    P5 --> P6["Giai đoạn 6: Giám Sát & Dashboard Observability\n(Metrics, Execution Logs, Dynamic Configs)"]
+    P6 --> P7["Giai đoạn 7: Nghiệm Thu & Tích Hợp PWA\n(E2E Testing, Swagger UI, Deploy Vercel Production)"]
 ```
 
 ---
 
-## 6. Thiết Kế Schema MongoDB
-
-### 6a. AgentExecutionLog (Tracing & Analytics)
-
-```typescript
-{
-  jobId: string,
-  agentId: 'story-shadowing' | 'opta' | 'general',
-  pipelineType: 'text' | 'youtube' | 'predict',
-  userId: string,
-  status: 'QUEUED' | 'RUNNING' | 'SUCCESS' | 'FAILED',
-  queuedAt: Date,
-  startedAt: Date,
-  completedAt: Date,
-  durationMs: number,
-  tokenUsage: {
-    promptTokens: number,
-    completionTokens: number,
-    totalTokens: number,
-    estimatedCostUsd: number
-  },
-  nodeTraces: [{
-    nodeName: string,
-    startedAt: Date,
-    durationMs: number,
-    status: 'COMPLETED' | 'ERROR',
-    errorDetail?: string
-  }],
-  error?: { message: string, stack: string }
-}
-// Index: { createdAt: -1, agentId: 1 } + TTL 90 ngày
-```
-
-### 6b. AgentJobResult (Kết Quả Xử Lý)
-
-```typescript
-{
-  jobId: string,
-  agentId: string,
-  result: any,       // Structured Output tương ứng từng Agent
-  createdAt: Date,
-  expiresAt: Date    // TTL: 7 ngày
-}
-```
-
-### 6c. AgentConfig (Dynamic Prompt & Model Config)
-
-```typescript
-{
-  agentId: string,
-  model: 'gemini-2.0-flash' | 'gemini-2.0-pro',
-  systemPrompt: string,
-  temperature: number,
-  isActive: boolean,
-  updatedAt: Date,
-  updatedBy: string
-}
-```
+### Giai đoạn 1: Khởi Tạo Dự Án & Bộ Khung Framework (ĐÃ HOÀN THÀNH)
+- [x] Khởi tạo `package.json`, `tsconfig.json`, `nest-cli.json`, `.gitignore`.
+- [x] Xây dựng cơ chế kiểm tra biến môi trường Fail-fast với Zod trong [env.validation.ts](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/src/common/config/env.validation.ts).
+- [x] Xây dựng [HealthController](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/src/api/health/health.controller.ts) (`GET /api/health`).
+- [x] Cấu hình Swagger UI với CDN Assets chống crash trên Vercel Serverless.
+- [x] Tạo Vercel Serverless Entrypoint [api/index.ts](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/api/index.ts) & [vercel.json](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/vercel.json).
+- [x] 100% Unit Tests & E2E Tests vượt qua.
 
 ---
 
-## 7. Cấu Hình Deploy (Hybrid Deployment Strategy)
-
-### Vercel (API Gateway — NestJS)
-
-```json
-{
-  "version": 2,
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.ts" },
-    { "source": "/dashboard", "destination": "/api/index.ts" }
-  ],
-  "functions": {
-    "api/index.ts": { "maxDuration": 30 }
-  }
-}
-```
-
-### Railway (Background Worker — Persistent Container)
-
-- Chạy Worker Process liên tục (Non-HTTP persistent container).
-- Environment Variables: `REDIS_URL`, `MONGODB_URI`, `GOOGLE_API_KEY`, `GOOGLE_TTS_KEY`.
-- Horizontal scaling: Thêm Worker instance khi Job Queue tăng.
+### Giai đoạn 2: Tầng Cơ Sở Dữ Liệu & Core Services
+- [ ] **Task 2.1:** Xây dựng `DatabaseModule` kết nối MongoDB Atlas qua Mongoose với Connection Pooling tối ưu cho Serverless.
+- [ ] **Task 2.2:** Định nghĩa Schema `Storybook` (collection `storybooks` trên DB `aha-tools` - tương thích 100% với PWA).
+- [ ] **Task 2.3:** Định nghĩa Schemas Quản Trị trên DB `aha-mind`:
+  - `AgentExecLog`: Ghi vết lịch sử thực thi, timeline các node, token usage và chi phí.
+  - `AgentConfig`: Lưu trữ System Prompt và Model cấu hình động.
+- [ ] **Task 2.4:** Xây dựng `GeminiRotatorService`: Quản lý và tự động luân phiên 6 Google Gemini API Keys với Rate Limiting & Failover.
 
 ---
 
-## 8. Built-in Dashboard Admin (3 Màn Hình Chính)
-
-Dashboard UI phục vụ qua NestJS tại `/dashboard`:
-
-1. **Overview Metrics:**
-   - KPI Cards: Total Runs / Avg Latency / Success Rate (%) / Est. Token Cost (USD/tháng).
-   - Biểu đồ: Token Consumption theo ngày (7/30 ngày), Agent Usage Distribution.
-
-2. **Trace Explorer:**
-   - Bảng danh sách Jobs (sortable: thời gian, agent, trạng thái).
-   - Drill-down: Click Job xem timeline từng Node và error stacktrace chi tiết.
-
-3. **Agent Config Manager:**
-   - Điều chỉnh System Prompt, chọn Model (Flash vs Pro) theo từng Agent.
-   - Toggle bật/tắt Agent mà không cần deploy lại.
+### Giai đoạn 3: Khung Plugin & Shared Tool Gateway
+- [ ] **Task 3.1:** Định nghĩa `AgentPlugin` Interface Contract ([src/core/plugin.interface.ts](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/src/core/plugin.interface.ts)).
+- [ ] **Task 3.2:** Xây dựng `PluginRegistryService` cho phép tự động khám phá và đăng ký các Agent Plugin.
+- [ ] **Task 3.3:** Xây dựng Tầng Công Cụ Dùng Chung (Shared Tool Gateway):
+  - `GeminiTool`: Wrapper gọi Gemini Chat & Structured Output với tính năng tự động chuyển Key khi dính Quota.
+  - `TtsTool`: Tích hợp Google Cloud TTS sinh audio base64.
+  - `YouTubeTool`: Tải phụ đề video và metadata từ YouTube.
+  - `ScraperTool`: Thu thập và làm sạch văn bản bài báo từ URL bằng Cheerio / Readability.
 
 ---
 
-## 9. Kế Hoạch Triển Khai Từng Bước (Execution Checklist)
-
-### [Giai đoạn 1] Scaffold & Infrastructure Setup (~2-3 ngày)
-- [ ] Khởi tạo dự án NestJS tại `aha-mind-agents/`
-- [ ] Cài đặt toàn bộ dependencies (NestJS, BullMQ, Mongoose, LangChain, Zod, RxJS)
-- [ ] Cấu hình `DatabaseModule` kết nối MongoDB Atlas (Serverless-safe connection pooling)
-- [ ] Cấu hình `BullMQModule` kết nối Redis (Upstash hoặc Railway Redis)
-- [ ] Tạo `api/index.ts` Vercel Serverless Entry Point với Singleton NestJS Cache
-- [ ] Tạo `vercel.json` và kiểm thử routing cục bộ
-
-### [Giai đoạn 2] Observability & Logging Layer (~1-2 ngày)
-- [ ] Tạo Mongoose Schemas: `AgentExecutionLog`, `AgentJobResult`, `AgentConfig`
-- [ ] Xây dựng `AgentLoggerInterceptor` (ghi log bất đồng bộ qua EventEmitter2)
-- [ ] Xây dựng `LogService` và `AnalyticsService` với MongoDB Aggregation Pipelines
-
-### [Giai đoạn 3] Core Agent Engine — Port từ aha-tools (~3-4 ngày)
-- [ ] Port & chuẩn hóa 7 Nodes của Story Shadowing Engine
-- [ ] Port & chuẩn hóa 4 Nodes của Opta Predictor Engine
-- [ ] Xây dựng Tool Gateway Layer: `tts.tool`, `gemini.tool`, `scraper.tool`, `youtube.tool`
-- [ ] Xây dựng MongoDB Checkpointer cho LangGraph (per-step snapshot)
-- [ ] Tích hợp Workers: `StoryShadowingWorker`, `OptaWorker`, `GeneralAgentWorker`
-
-### [Giai đoạn 4] API Layer & SSE Status Stream (~2 ngày)
-- [ ] Xây dựng `AgentsController`: POST endpoints nhận Job, trả HTTP 202 + JobID
-- [ ] Xây dựng `StatusController`: `@Sse('/status/stream')` subscribe Redis Pub/Sub
-- [ ] Xây dựng DTOs với Zod validation cho tất cả input/output
-- [ ] Xây dựng `ResultController`: GET kết quả sau khi Job hoàn thành
-
-### [Giai đoạn 5] Dashboard UI (~2-3 ngày)
-- [ ] Xây dựng Dashboard SPA (React + Tailwind, phục vụ qua NestJS `/dashboard`)
-- [ ] Implement 3 màn hình: Overview Metrics, Trace Explorer, Agent Config Manager
-
-### [Giai đoạn 6] Integration & Deploy (~2 ngày)
-- [ ] Cập nhật `aha-tools`: Thay thế gọi nội bộ `lib/agents` → gọi `aha-mind:agents` API
-- [ ] Deploy API Gateway lên Vercel
-- [ ] Deploy Background Worker lên Railway
-- [ ] Kiểm thử End-to-End toàn bộ 6 pipeline nghiệp vụ
+### Giai đoạn 4: Story Shadowing Agent Plugin
+- [ ] **Task 4.1:** Cấu trúc Plugin [src/plugins/story-shadowing/](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/src/plugins/story-shadowing/).
+- [ ] **Task 4.2:** Porting **Text Pipeline** (LangGraph State Machine):
+  - `sentenceSplitterNode`: Phân tách câu + phiên âm IPA.
+  - `ttsGeneratorNode`: Tạo audio Text-to-Speech.
+  - `keywordIdentifierNode` & `keywordEnricherNode`: Nhận diện từ vựng CEFR và tra cứu collocations.
+- [ ] **Task 4.3:** Porting **YouTube Pipeline**:
+  - `youtubeTranscriptFetcherNode`: Tải phụ đề.
+  - `youtubeSentenceConsolidatorNode`: Ghép câu thông minh và căn chỉnh mốc thời gian (startMs/endMs).
+- [ ] **Task 4.4:** Đóng gói thành `StoryShadowingPlugin` tuân thủ `AgentPlugin` interface, trả về `Observable<ProgressEvent>`.
 
 ---
 
-## 10. Verification Plan (Kế Hoạch Nghiệm Thu)
+### Giai đoạn 5: Unified Agent Controller & Real-Time SSE Gateway
+- [ ] **Task 5.1:** Xây dựng `AgentsController` với endpoint hợp nhất:
+  - `POST /api/agents/:agentId/:pipeline`
+- [ ] **Task 5.2:** Xây dựng RxJS SSE Streaming Operator với cơ chế **Keep-Alive Heartbeat**:
+  - Tự động phát event `ping` mỗi 15 giây nếu LangGraph đang chạy node nặng $\rightarrow$ Giữ kết nối Vercel luôn sống (No Timeout).
+  - Stream chi tiết từng event tiến độ: `init`, `step_start`, `step_complete`, `done`, `error`.
+- [ ] **Task 5.3:** Tự động lưu kết quả vào Collection `storybooks` ngay khi pipeline hoàn thành.
 
-| Test Case | Mô tả | Kết quả kỳ vọng |
-| :--- | :--- | :--- |
-| TC-01: Text Shadowing | POST văn bản → nhận JobID → SSE stream 4 bước → GET result | Đầy đủ sentences, audio, IPA, keywords |
-| TC-02: YouTube Shadowing | POST URL → nhận JobID → SSE stream → GET result | Chuỗi câu có timestamps chính xác |
-| TC-03: Opta Prediction | POST match info → nhận phân tích + tỷ số dự đoán | Output tương đương hiện tại trên aha-tools |
-| TC-04: Timeout Resilience | Giả lập mạng yếu → Worker vẫn hoàn tất → Client reconnect SSE | Job không bị mất dữ liệu |
-| TC-05: Dashboard Metrics | Sau TC-01,02,03 → mở `/dashboard` | Hiển thị đúng số lượt, latency, token usage |
-| TC-06: Vercel Cold Start | Gọi API ngay sau Deploy mới | Phản hồi 202 trong < 3 giây |
+---
+
+### Giai đoạn 6: Giám Sát & Dashboard Observability API
+- [ ] **Task 6.1:** `GET /api/dashboard/metrics`: Thống kê tổng số lượt chạy, tỉ lệ thành công, thời gian xử lý trung bình và tổng token tiêu thụ.
+- [ ] **Task 6.2:** `GET /api/dashboard/logs`: Xem lịch sử chi tiết từng lần chạy kèm timeline các node.
+- [ ] **Task 6.3:** `GET /api/dashboard/plugins`: Liệt kê danh sách các Plugin đang hoạt động trên hệ thống.
+- [ ] **Task 6.4:** `GET/PUT /api/dashboard/configs/:agentId`: Quản lý prompt và model động không cần redeploy code.
+
+---
+
+### Giai đoạn 7: Nghiệm Thu & Tích Hợp Với aha-tools PWA
+- [ ] **Task 7.1:** Viết Unit Tests & Integration Tests toàn diện cho Plugin và Gateway.
+- [ ] **Task 7.2:** Chạy kiểm thử End-to-End với văn bản thực tế và link YouTube thực tế.
+- [ ] **Task 7.3:** Cập nhật Swagger API Docs đầy đủ schema request/response.
+- [ ] **Task 7.4:** Deploy lên Vercel Production và nghiệm thu thực tế.
+
+---
+
+## 3. Kế Hoạch Xác Minh (Verification Plan)
+
+### Kiểm Thử Tự Động (Automated Tests)
+- `npm run test`: Kiểm tra logic toàn bộ Services, Tools và State Reducers.
+- `npm run test:e2e`: Kiểm tra gọi API `POST /api/agents/story-shadowing/text` và hứng dữ liệu SSE stream trả về 200 OK.
+- `npm run build`: Đảm bảo 0 lỗi TypeScript khi biên dịch sang `dist/`.
+
+### Kiểm Thử Thủ Công (Manual Verification)
+1. Dùng curl hoặc Postman gọi endpoint SSE:
+   ```bash
+   curl -N -X POST http://localhost:3001/api/agents/story-shadowing/text \
+     -H "Content-Type: application/json" \
+     -d '{"text": "The quick brown fox jumps over the lazy dog.", "voice": "en-US-Journey-F"}'
+   ```
+2. Quan sát dòng sự kiện SSE trả về liên tục (kèm ping heartbeat).
+3. Kiểm tra bài học mới xuất hiện ngay lập tức trong MongoDB và PWA `aha-tools`.
 
 ---
 *Made by Anh Tu - Share to be share*
