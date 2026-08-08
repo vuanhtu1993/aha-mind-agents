@@ -1,23 +1,31 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { ExpressAdapter } from '@nestjs/platform-express';
+import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
+import express, { Express, Request, Response } from 'express';
+import { AppModule } from '../src/app.module';
 
-async function bootstrap() {
-  const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+const server: Express = express();
+let isAppInitialized = false;
 
-  // 1. Cấu hình Global Prefix cho toàn bộ API Gateway
+/**
+ * Khởi tạo NestJS Application Context dưới dạng Express Handler cho Vercel Serverless.
+ * Sử dụng Singleton Pattern để tái sử dụng instance qua các lần invoke (tránh cold start thừa).
+ */
+async function bootstrapServerless() {
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
+
+  // 1. Cấu hình Global Prefix
   app.setGlobalPrefix('api');
 
-  // 2. Kích hoạt CORS hỗ trợ PWA Frontend kết nối an toàn
+  // 2. Kích hoạt CORS
   app.enableCors({
     origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
 
-  // 3. Global Validation Pipe tự động lọc và ép kiểu DTO
+  // 3. Validation Pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -26,7 +34,9 @@ async function bootstrap() {
     }),
   );
 
-  // 4. Swagger Open-API Documentation (truy cập tại /api/docs)
+  // 4. Swagger Open-API Documentation với Cloud CDN
+  // CRITICAL CHO VERCEL: Sử dụng customCssUrl và customJs từ CDN (cdnjs/unpkg)
+  // để tránh việc Swagger cố đọc file static từ node_modules/swagger-ui-dist trên môi trường serverless (gây crash 500).
   const config = new DocumentBuilder()
     .setTitle('aha-mind:agents API Gateway')
     .setDescription('Hệ thống điều phối và thực thi Autonomous Multi-Agent Workflows')
@@ -47,11 +57,13 @@ async function bootstrap() {
     ],
   });
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
-
-  logger.log(`🚀 [aha-mind-agents] Gateway is running on: http://localhost:${port}/api`);
-  logger.log(`📑 [Swagger Docs] Available at: http://localhost:${port}/api/docs`);
+  await app.init();
+  isAppInitialized = true;
 }
 
-bootstrap();
+export default async function handler(req: Request, res: Response) {
+  if (!isAppInitialized) {
+    await bootstrapServerless();
+  }
+  server(req, res);
+}
