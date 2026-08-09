@@ -40,19 +40,19 @@ graph TD
 ---
 
 ### Giai đoạn 2: Tầng Cơ Sở Dữ Liệu & Core Services
-- [ ] **Task 2.1:** Xây dựng `DatabaseModule` kết nối MongoDB Atlas qua Mongoose với Connection Pooling tối ưu cho Serverless.
-- [ ] **Task 2.2:** Định nghĩa Schema `Storybook` (collection `storybooks` trên DB `aha-tools` - tương thích 100% với PWA).
-- [ ] **Task 2.3:** Định nghĩa Schemas Quản Trị trên DB `aha-mind`:
+- [x] **Task 2.1:** Xây dựng `DatabaseModule` kết nối MongoDB Atlas qua Mongoose với Connection Pooling tối ưu cho Serverless.
+- [x] **Task 2.2:** Định nghĩa Schema `Storybook` (collection `storybooks` trên DB `aha-tools` - tương thích 100% với PWA).
+- [x] **Task 2.3:** Định nghĩa Schemas Quản Trị trên DB `aha-mind`:
   - `AgentExecLog`: Ghi vết lịch sử thực thi, timeline các node, token usage và chi phí.
   - `AgentConfig`: Lưu trữ System Prompt và Model cấu hình động.
-- [ ] **Task 2.4:** Xây dựng `GeminiRotatorService`: Quản lý và tự động luân phiên 6 Google Gemini API Keys với Rate Limiting & Failover.
+- [x] **Task 2.4:** Xây dựng `GeminiRotatorService`: Quản lý và tự động luân phiên 6 Google Gemini API Keys với Rate Limiting & Failover.
 
 ---
 
 ### Giai đoạn 3: Khung Plugin & Shared Tool Gateway
-- [ ] **Task 3.1:** Định nghĩa `AgentPlugin` Interface Contract ([src/core/plugin.interface.ts](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/src/core/plugin.interface.ts)).
-- [ ] **Task 3.2:** Xây dựng `PluginRegistryService` cho phép tự động khám phá và đăng ký các Agent Plugin.
-- [ ] **Task 3.3:** Xây dựng Tầng Công Cụ Dùng Chung (Shared Tool Gateway):
+- [x] **Task 3.1:** Định nghĩa `AgentPlugin` Interface Contract ([src/core/plugin.interface.ts](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/src/core/plugin.interface.ts)).
+- [x] **Task 3.2:** Xây dựng `PluginRegistryService` cho phép tự động khám phá và đăng ký các Agent Plugin.
+- [x] **Task 3.3:** Xây dựng Tầng Công Cụ Dùng Chung (Shared Tool Gateway):
   - `GeminiTool`: Wrapper gọi Gemini Chat & Structured Output với tính năng tự động chuyển Key khi dính Quota.
   - `TtsTool`: Tích hợp Google Cloud TTS sinh audio base64.
   - `YouTubeTool`: Tải phụ đề video và metadata từ YouTube.
