@@ -4,6 +4,7 @@ import { validateEnv } from './common/config/env.validation';
 import { HealthModule } from './api/health/health.module';
 import { DatabaseModule } from './infra/database/database.module';
 import { CoreModule } from './core/core.module';
+import { StoryShadowingModule } from './plugins/story-shadowing/story-shadowing.module';
 
 /**
  * AppModule là Root Module trung tâm kết nối toàn bộ các thành phần của Gateway.
@@ -21,6 +22,7 @@ import { CoreModule } from './core/core.module';
     DatabaseModule,
     CoreModule,
     HealthModule,
+    StoryShadowingModule,
   ],
 })
 export class AppModule {}

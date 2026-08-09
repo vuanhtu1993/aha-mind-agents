@@ -22,4 +22,4 @@ import { ScraperToolService } from './tools/scraper.tool';
     ScraperToolService,
   ],
 })
-export class CoreModule {}
+export class CoreModule { }
