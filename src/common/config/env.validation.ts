@@ -28,7 +28,7 @@ export const EnvSchema = z.object({
 
   // Bảo mật Dashboard & Internal Webhooks
   CRON_SECRET: z.string().default('aha-mind-secret-2026'),
-});
+}).passthrough();
 
 export type EnvConfig = z.infer<typeof EnvSchema>;
 
