@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 export class AgentsController {
   private readonly logger = new Logger(AgentsController.name);
 
-  constructor(private readonly pluginRegistry: PluginRegistryService) {}
+  constructor(private readonly pluginRegistry: PluginRegistryService) { }
 
   /**
    * Lấy danh sách toàn bộ các plugins đang hoạt động
@@ -29,9 +29,9 @@ export class AgentsController {
    */
   @Post(':pluginId/:pipeline/stream')
   @ApiOperation({ summary: 'Thực thi Agent', description: 'Gửi yêu cầu tới Agent và nhận luồng dữ liệu tiến độ thời gian thực dạng SSE (Server-Sent Events).' })
-  @ApiParam({ name: 'pluginId', example: 'story-shadowing', description: 'Mã ID của Plugin' })
+  @ApiParam({ name: 'plugin', example: 'story-shadowing', description: 'Tên của Plugin' })
   @ApiParam({ name: 'pipeline', example: 'text', description: 'Loại pipeline cần thực thi (vd: text, youtube)' })
-  @ApiBody({ 
+  @ApiBody({
     description: 'Dữ liệu đầu vào phụ thuộc vào pipeline. \n- Với text: { "text": "Đoạn văn...", "voice": "FEMALE" } \n- Với youtube: { "youtubeUrl": "https..." }',
     schema: {
       type: 'object',
@@ -72,7 +72,7 @@ export class AgentsController {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     // Quan trọng để vượt qua các bộ đệm (buffers) của nginx hoặc proxy
-    res.setHeader('X-Accel-Buffering', 'no'); 
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
     const jobId = uuidv4();
@@ -88,7 +88,7 @@ export class AgentsController {
     };
 
     // Tạo ExecutionContext
-    const context = { 
+    const context = {
       jobId,
       log: (message: string, meta?: any) => {
         this.logger.log(`[Job ${jobId}] ${message} ${meta ? JSON.stringify(meta) : ''}`);

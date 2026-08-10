@@ -4,4 +4,4 @@ import { AgentsController } from './agents.controller';
 @Module({
   controllers: [AgentsController],
 })
-export class AgentsModule {}
+export class AgentsModule { }

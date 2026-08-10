@@ -60,26 +60,26 @@ graph TD
 
 ---
 
-### Giai đoạn 4: Story Shadowing Agent Plugin
-- [ ] **Task 4.1:** Cấu trúc Plugin [src/plugins/story-shadowing/](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/src/plugins/story-shadowing/).
-- [ ] **Task 4.2:** Porting **Text Pipeline** (LangGraph State Machine):
+### Giai đoạn 4: Story Shadowing Agent Plugin (ĐÃ HOÀN THÀNH)
+- [x] **Task 4.1:** Cấu trúc Plugin [src/plugins/story-shadowing/](file:///Users/anhtus/Documents/Development/NestJS/aha-mind-agents/src/plugins/story-shadowing/).
+- [x] **Task 4.2:** Porting **Text Pipeline** (LangGraph State Machine):
   - `sentenceSplitterNode`: Phân tách câu + phiên âm IPA.
   - `ttsGeneratorNode`: Tạo audio Text-to-Speech.
   - `keywordIdentifierNode` & `keywordEnricherNode`: Nhận diện từ vựng CEFR và tra cứu collocations.
-- [ ] **Task 4.3:** Porting **YouTube Pipeline**:
+- [x] **Task 4.3:** Porting **YouTube Pipeline**:
   - `youtubeTranscriptFetcherNode`: Tải phụ đề.
   - `youtubeSentenceConsolidatorNode`: Ghép câu thông minh và căn chỉnh mốc thời gian (startMs/endMs).
-- [ ] **Task 4.4:** Đóng gói thành `StoryShadowingPlugin` tuân thủ `AgentPlugin` interface, trả về `Observable<ProgressEvent>`.
+- [x] **Task 4.4:** Đóng gói thành `StoryShadowingPlugin` tuân thủ `AgentPlugin` interface, trả về `Observable<ProgressEvent>`.
 
 ---
 
-### Giai đoạn 5: Unified Agent Controller & Real-Time SSE Gateway
-- [ ] **Task 5.1:** Xây dựng `AgentsController` với endpoint hợp nhất:
+### Giai đoạn 5: Unified Agent Controller & Real-Time SSE Gateway (ĐÃ HOÀN THÀNH)
+- [x] **Task 5.1:** Xây dựng `AgentsController` với endpoint hợp nhất:
   - `POST /api/agents/:agentId/:pipeline`
-- [ ] **Task 5.2:** Xây dựng RxJS SSE Streaming Operator với cơ chế **Keep-Alive Heartbeat**:
+- [x] **Task 5.2:** Xây dựng RxJS SSE Streaming Operator với cơ chế **Keep-Alive Heartbeat**:
   - Tự động phát event `ping` mỗi 15 giây nếu LangGraph đang chạy node nặng $\rightarrow$ Giữ kết nối Vercel luôn sống (No Timeout).
   - Stream chi tiết từng event tiến độ: `init`, `step_start`, `step_complete`, `done`, `error`.
-- [ ] **Task 5.3:** Tự động lưu kết quả vào Collection `storybooks` ngay khi pipeline hoàn thành.
+- [x] **Task 5.3:** Tự động lưu kết quả vào Collection `storybooks` ngay khi pipeline hoàn thành.
 
 ---
 
