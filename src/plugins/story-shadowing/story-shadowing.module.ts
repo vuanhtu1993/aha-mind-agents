@@ -14,7 +14,15 @@ import { YoutubeSentenceConsolidatorNode } from './nodes/youtube-sentence-consol
 import { TextPipelineService } from './pipelines/text.pipeline';
 import { YoutubePipelineService } from './pipelines/youtube.pipeline';
 
+// Mongoose
+import { MongooseModule } from '@nestjs/mongoose';
+import { Storybook, StorybookSchema } from '../../infra/database/schemas/storybook.schema';
+import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
+
 @Module({
+  imports: [
+    MongooseModule.forFeature([{ name: Storybook.name, schema: StorybookSchema }], AHA_TOOLS_CONNECTION),
+  ],
   providers: [
     // Nodes
     SentenceSplitterNode,

@@ -33,6 +33,7 @@ export class YoutubeTranscriptFetcherNode {
 
       return {
         youtubeTitle: title,
+        youtubeVideoId: videoId,
         youtubeTranscript: transcript.map(t => ({
           text: t.text,
           offset: t.offset,

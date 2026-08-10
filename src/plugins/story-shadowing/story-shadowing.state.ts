@@ -9,6 +9,7 @@ export const StoryShadowingState = Annotation.Root({
 
   // === Intermediate Output: YoutubeFetcher ===
   youtubeTitle: Annotation<string>(),
+  youtubeVideoId: Annotation<string>(),
   youtubeTranscript: Annotation<Array<{ text: string; offset: number; duration: number }>>({
     reducer: (_, y) => y,
   }),

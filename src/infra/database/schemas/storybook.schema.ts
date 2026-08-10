@@ -71,6 +71,9 @@ export class StorybookKeyword {
   @Prop()
   ipa?: string;
 
+  @Prop()
+  audioUrl?: string;
+
   @Prop({ required: true })
   explanation: string;
 

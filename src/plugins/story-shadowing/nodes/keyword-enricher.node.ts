@@ -7,7 +7,7 @@ import { StoryShadowingStateType } from '../story-shadowing.state';
 export class KeywordEnricherNode {
   private readonly logger = new Logger(KeywordEnricherNode.name);
 
-  constructor(private readonly gemini: GeminiRotatorService) {}
+  constructor(private readonly gemini: GeminiRotatorService) { }
 
   private getBatchEnrichmentPrompt(items: IdentifiedKeywordItem[]) {
     const itemsListStr = items.map((item, i) => `
@@ -34,18 +34,18 @@ Keep explanations concise and pedagogical. Output an array of items matching the
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
       const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
-      
+
       const response = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
 
       if (!response.ok) return null;
-      
+
       const data = await response.json();
       if (!Array.isArray(data) || data.length === 0) return null;
 
       const entry = data[0];
       const phonetics = entry.phonetics || [];
-      
+
       const ipa = phonetics.find((p: any) => p.text)?.text || entry.phonetic || '';
       const audioUrl = phonetics.find((p: any) => p.audio && p.audio.length > 0)?.audio || '';
 
@@ -65,7 +65,7 @@ Keep explanations concise and pedagogical. Output an array of items matching the
     try {
       // Tách riêng các từ đơn (word) để gọi Dictionary API
       const wordItems = state.identifiedKeywords.filter(item => item.type === 'word');
-      
+
       // Chạy song song Gemini và Dictionary API
       const [parsed, dictResults] = await Promise.all([
         this.gemini.invokeStructured(GeminiBatchKeywordEnrichSchema, [
@@ -73,7 +73,7 @@ Keep explanations concise and pedagogical. Output an array of items matching the
         ]),
         Promise.all(wordItems.map(item => this.fetchDictionaryIpa(item.word)))
       ]);
-      
+
       // Map kết quả Dictionary API
       const dictMap = new Map<string, { ipa: string, audioUrl: string }>();
       wordItems.forEach((item, index) => {
@@ -87,10 +87,10 @@ Keep explanations concise and pedagogical. Output an array of items matching the
         const geminiData = parsed.items.find((g: any) => g.word.toLowerCase() === item.word.toLowerCase());
         if (geminiData) {
           const dictInfo = dictMap.get(item.word.toLowerCase());
-          
+
           enrichedKeywords.push({
             word: item.word,
-            ipa: dictInfo?.ipa || '', 
+            ipa: dictInfo?.ipa || '',
             audioUrl: dictInfo?.audioUrl || '',
             level: item.level,
             explanation: geminiData.explanation,

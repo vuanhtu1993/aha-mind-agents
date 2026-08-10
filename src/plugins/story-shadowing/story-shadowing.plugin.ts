@@ -4,6 +4,10 @@ import { AgentPlugin, AgentPluginMetadata, ExecutionContext, PipelineStep, Progr
 import { TextPipelineService } from './pipelines/text.pipeline';
 import { YoutubePipelineService } from './pipelines/youtube.pipeline';
 import { z } from 'zod';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
+import { Storybook } from '../../infra/database/schemas/storybook.schema';
 
 const TextPipelineInputSchema = z.object({
   text: z.string().min(10, 'Văn bản quá ngắn.').max(10000, 'Văn bản quá dài.'),
@@ -26,6 +30,8 @@ export class StoryShadowingPlugin implements AgentPlugin {
   constructor(
     private readonly textPipeline: TextPipelineService,
     private readonly youtubePipeline: YoutubePipelineService,
+    @InjectModel(Storybook.name, AHA_TOOLS_CONNECTION)
+    private readonly storybookModel: Model<Storybook>,
   ) {}
 
   public async validateInput(pipeline: string, input: any): Promise<any> {
@@ -63,12 +69,61 @@ export class StoryShadowingPlugin implements AgentPlugin {
     input: any,
     context: ExecutionContext,
   ): Observable<ProgressEvent> {
-    if (pipeline === 'text') {
-      return this.textPipeline.execute(input, context);
+    return new Observable<ProgressEvent>((subscriber) => {
+      let stream$: Observable<ProgressEvent>;
+
+      if (pipeline === 'text') {
+        stream$ = this.textPipeline.execute(input, context);
+      } else if (pipeline === 'youtube') {
+        stream$ = this.youtubePipeline.execute(input, context);
+      } else {
+        throw new Error(`Pipeline '${pipeline}' không tồn tại.`);
+      }
+
+      const subscription = stream$.subscribe({
+        next: (event) => {
+          subscriber.next(event);
+          // Nếu event là done, tiến hành lưu vào DB
+          if (event.status === 'done' && event.payload) {
+            this.saveToDatabase(pipeline, input, event.payload, context).catch(err => {
+              context.log('❌ Lỗi khi lưu vào Database', err);
+            });
+          }
+        },
+        error: (err) => subscriber.error(err),
+        complete: () => subscriber.complete(),
+      });
+
+      return () => subscription.unsubscribe();
+    });
+  }
+
+  private async saveToDatabase(pipeline: string, input: any, finalState: any, context: ExecutionContext) {
+    context.log('Đang lưu bài học vào CSDL Storybooks...');
+    
+    // Tạo originalText cho youtube nếu không có rawText
+    let originalText = finalState.rawText;
+    if (!originalText && finalState.sentences) {
+      originalText = finalState.sentences.map((s: any) => s.text).join(' ');
     }
-    if (pipeline === 'youtube') {
-      return this.youtubePipeline.execute(input, context);
+    if (!originalText) {
+      originalText = input.youtubeUrl || 'Bản ghi không có nội dung gốc.';
     }
-    throw new Error(`Pipeline '${pipeline}' không tồn tại.`);
+
+    const newStory = new this.storybookModel({
+      title: pipeline === 'youtube' ? finalState.youtubeTitle : 'Bài luyện tập Text',
+      thumbnail: pipeline === 'youtube' && finalState.youtubeVideoId ? `https://img.youtube.com/vi/${finalState.youtubeVideoId}/hqdefault.jpg` : undefined,
+      originalText: originalText,
+      youtubeVideoId: finalState.youtubeVideoId,
+      sentences: finalState.sentences,
+      keywords: finalState.keywords,
+      level: finalState.level,
+      voice: finalState.voice || 'FEMALE',
+      speakingRate: finalState.speakingRate || 1.0,
+      sourceType: pipeline,
+    });
+    
+    const saved = await newStory.save();
+    context.log(`✅ Đã lưu bài học thành công. ID: ${saved._id}`);
   }
 }
