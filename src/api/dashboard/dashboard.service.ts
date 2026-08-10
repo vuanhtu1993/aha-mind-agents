@@ -1,0 +1,103 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { AHA_MIND_CONNECTION } from '../../infra/database/database.constants';
+import { AgentExecLog } from '../../infra/database/schemas/agent-log.schema';
+import { AgentConfig } from '../../infra/database/schemas/agent-config.schema';
+import { PluginRegistryService } from '../../core/services/plugin-registry.service';
+
+@Injectable()
+export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
+
+  constructor(
+    @InjectModel(AgentExecLog.name, AHA_MIND_CONNECTION) private readonly execLogModel: Model<AgentExecLog>,
+    @InjectModel(AgentConfig.name, AHA_MIND_CONNECTION) private readonly configModel: Model<AgentConfig>,
+    private readonly pluginRegistry: PluginRegistryService,
+  ) { }
+
+  async getMetrics() {
+    const totalRuns = await this.execLogModel.countDocuments();
+
+    // Đếm số lượng theo status
+    const statusCounts = await this.execLogModel.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    // Tính token và thời gian trung bình
+    const averages = await this.execLogModel.aggregate([
+      { $match: { status: 'completed' } },
+      {
+        $group: {
+          _id: null,
+          avgDuration: { $avg: '$durationMs' },
+          totalTokensUsed: { $sum: '$tokenUsage.totalTokens' }
+        }
+      }
+    ]);
+
+    const statusMap = statusCounts.reduce((acc, curr) => {
+      acc[curr._id] = curr.count;
+      return acc;
+    }, {});
+
+    return {
+      totalRuns,
+      status: statusMap,
+      averages: averages[0] ? {
+        avgDurationMs: Math.round(averages[0].avgDuration),
+        totalTokensUsed: averages[0].totalTokensUsed,
+      } : null,
+    };
+  }
+
+  async getLogs(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [items, total] = await Promise.all([
+      this.execLogModel.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      this.execLogModel.countDocuments()
+    ]);
+    return {
+      items,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  }
+
+  async getPlugins() {
+    // Trả về danh sách plugin
+    const plugins = this.pluginRegistry['plugins'];
+    return Array.from(plugins.entries()).map(([id, plugin]) => ({
+      id,
+      metadata: plugin.metadata
+    }));
+  }
+
+  async getAgentConfig(agentId: string) {
+    const config = await this.configModel.findOne({ agentId }).lean();
+    if (!config) {
+      // Default config nếu chưa có
+      return {
+        agentId,
+        defaultModel: 'gemini-2.5-flash',
+        temperature: 0.1,
+        maxRetries: 2,
+        isActive: true
+      };
+    }
+    return config;
+  }
+
+  async updateAgentConfig(agentId: string, data: Partial<AgentConfig>) {
+    const config = await this.configModel.findOneAndUpdate(
+      { agentId },
+      { $set: data },
+      { new: true, upsert: true }
+    );
+    return config;
+  }
+}

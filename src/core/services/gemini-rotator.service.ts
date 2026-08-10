@@ -142,22 +142,41 @@ export class GeminiRotatorService implements OnModuleInit {
   /**
    * Gọi LLM trả về text.
    */
-  public async invoke(messages: any[], options?: { temperature?: number, searchGrounding?: boolean }): Promise<any> {
+  public async invoke(messages: any[], options?: { temperature?: number, searchGrounding?: boolean }): Promise<{ text: string, usage: { promptTokens: number, completionTokens: number, totalTokens: number } }> {
     return this.executeWithFailover(async () => {
       const model = this.getModelWithOptions(options);
-      return await model.invoke(messages);
+      const response = await model.invoke(messages);
+      return {
+        text: response.content as string,
+        usage: {
+          promptTokens: response.usage_metadata?.input_tokens || 0,
+          completionTokens: response.usage_metadata?.output_tokens || 0,
+          totalTokens: response.usage_metadata?.total_tokens || 0,
+        }
+      };
     });
   }
 
   /**
    * Gọi LLM trả về JSON Structured Output.
    */
-  public async invokeStructured(schema: any, prompt: string | any[], options?: { temperature?: number, name?: string }): Promise<any> {
+  public async invokeStructured(schema: any, prompt: string | any[], options?: { temperature?: number, name?: string }): Promise<{ parsed: any, usage: { promptTokens: number, completionTokens: number, totalTokens: number } }> {
     return this.executeWithFailover(async () => {
       const model = this.getModelWithOptions(options);
-      const structuredOptions = options?.name ? { name: options.name } : undefined;
-      const structuredLlm = model.withStructuredOutput(schema, structuredOptions);
-      return await structuredLlm.invoke(prompt);
+      const structuredOptions = options?.name ? { name: options.name, includeRaw: true } : { includeRaw: true };
+      const structuredLlm = model.withStructuredOutput(schema, structuredOptions as any);
+      
+      const response = await structuredLlm.invoke(prompt);
+      const rawMessage = response.raw;
+      
+      return {
+        parsed: response.parsed,
+        usage: {
+          promptTokens: rawMessage?.usage_metadata?.input_tokens || 0,
+          completionTokens: rawMessage?.usage_metadata?.output_tokens || 0,
+          totalTokens: rawMessage?.usage_metadata?.total_tokens || 0,
+        }
+      };
     });
   }
 }

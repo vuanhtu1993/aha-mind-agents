@@ -1,15 +1,22 @@
-import { Controller, Get, Post, Param, Body, Res, Req, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Res, Req, HttpException, HttpStatus, Logger, Inject } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { PluginRegistryService } from '../../core/services/plugin-registry.service';
 import { v4 as uuidv4 } from 'uuid';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { AHA_MIND_CONNECTION } from '../../infra/database/database.constants';
+import { AgentExecLog } from '../../infra/database/schemas/agent-log.schema';
 
-@ApiTags('Agents')
+@ApiTags('Agents (Gateway)')
 @Controller('v1/agents')
 export class AgentsController {
   private readonly logger = new Logger(AgentsController.name);
 
-  constructor(private readonly pluginRegistry: PluginRegistryService) { }
+  constructor(
+    private readonly pluginRegistry: PluginRegistryService,
+    @InjectModel(AgentExecLog.name, AHA_MIND_CONNECTION) private readonly agentExecLogModel: Model<AgentExecLog>,
+  ) { }
 
   /**
    * Lấy danh sách toàn bộ các plugins đang hoạt động
@@ -98,19 +105,51 @@ export class AgentsController {
     // Kích hoạt Plugin
     const stream$ = plugin.execute(pipeline, validatedInput, context);
 
+    // Các biến phụ trợ cho việc lưu Log
+    const startTime = Date.now();
+    let lastEventTime = startTime;
+    const timeline: any[] = [];
+    let finalTokenUsage: any = undefined;
+    let finalStatus = 'running';
+    let finalError: any = undefined;
+
     // Đăng ký nhận luồng sự kiện
     const subscription = stream$.subscribe({
       next: (event) => {
         writeSseEvent(event);
+        
+        // Bắt sự kiện timeline của các Node
+        if (event.status === 'completed' || event.status === 'failed') {
+          const now = Date.now();
+          timeline.push({
+            nodeName: event.stepId || 'unknown_node',
+            status: event.status,
+            durationMs: now - lastEventTime,
+            timestamp: new Date(),
+          });
+          lastEventTime = now;
+        }
+
+        // Bắt Token Usage ở event cuối cùng
+        if (event.status === 'done' && event.payload?.tokenUsage) {
+          finalTokenUsage = event.payload.tokenUsage;
+          finalStatus = 'completed';
+        }
       },
-      error: (err) => {
+      error: async (err) => {
         this.logger.error(`Job [${jobId}] Lỗi: ${err.message}`);
-        // Gửi event báo lỗi cuối cùng cho Client trước khi sập
+        finalStatus = 'failed';
+        finalError = err.message;
         writeSseEvent({ status: 'failed', message: `Lỗi hệ thống: ${err.message}` });
+        
+        await this.saveAgentLog(jobId, pluginId, pipeline, startTime, finalStatus, timeline, finalTokenUsage, finalError);
         res.end();
       },
-      complete: () => {
+      complete: async () => {
         this.logger.log(`Job [${jobId}] Hoàn tất.`);
+        if (finalStatus !== 'failed') finalStatus = 'completed';
+        
+        await this.saveAgentLog(jobId, pluginId, pipeline, startTime, finalStatus, timeline, finalTokenUsage, finalError);
         res.end();
       },
     });
@@ -122,5 +161,35 @@ export class AgentsController {
         subscription.unsubscribe();
       }
     });
+  }
+
+  /**
+   * Lưu log thực thi xuống DB (MongoDB - aha_mind)
+   */
+  private async saveAgentLog(
+    jobId: string, 
+    agentId: string, 
+    pipeline: string, 
+    startTime: number, 
+    status: string, 
+    timeline: any[], 
+    tokenUsage: any, 
+    error?: any
+  ) {
+    try {
+      await this.agentExecLogModel.create({
+        jobId,
+        agentId,
+        pipeline,
+        status,
+        durationMs: Date.now() - startTime,
+        timeline,
+        tokenUsage,
+        error,
+      });
+      this.logger.log(`Lưu AgentExecLog thành công cho Job [${jobId}]`);
+    } catch (err: any) {
+      this.logger.error(`Không thể lưu AgentExecLog cho Job [${jobId}]: ${err.message}`);
+    }
   }
 }

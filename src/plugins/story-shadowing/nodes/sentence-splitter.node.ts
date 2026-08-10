@@ -31,16 +31,21 @@ export class SentenceSplitterNode {
     this.logger.log('Đang phân tách câu và trích xuất IPA...');
     
     try {
-      const parsed = await this.gemini.invokeStructured(GeminiSentenceListSchema, [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: state.rawText },
-      ]);
+      const response = await this.gemini.invokeStructured(
+        GeminiSentenceListSchema,
+        [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: state.rawText },
+        ],
+        { temperature: 0.1, name: 'split_and_transcribe_sentences' }
+      );
       
-      this.logger.log(`✅ Phân tách thành công ${parsed.sentences.length} câu (Mức độ: ${parsed.level})`);
+      this.logger.log(`✅ Phân tách thành công ${response.parsed.sentences.length} câu.`);
       
       return { 
-        level: parsed.level,
-        rawSentences: parsed.sentences
+        level: response.parsed.level,
+        rawSentences: response.parsed.sentences,
+        tokenUsage: response.usage
       };
     } catch (err: any) {
       this.logger.error(`❌ Lỗi chia câu: ${err.message}`);

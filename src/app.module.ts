@@ -6,6 +6,7 @@ import { DatabaseModule } from './infra/database/database.module';
 import { CoreModule } from './core/core.module';
 import { StoryShadowingModule } from './plugins/story-shadowing/story-shadowing.module';
 import { AgentsModule } from './api/agents/agents.module';
+import { DashboardModule } from './api/dashboard/dashboard.module';
 
 /**
  * AppModule là Root Module trung tâm kết nối toàn bộ các thành phần của Gateway.
@@ -25,6 +26,7 @@ import { AgentsModule } from './api/agents/agents.module';
     HealthModule,
     StoryShadowingModule,
     AgentsModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

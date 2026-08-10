@@ -6,6 +6,16 @@ export const StoryShadowingState = Annotation.Root({
   rawText: Annotation<string>(),       // Văn bản thô do người dùng nhập (cho text pipeline)
   voice: Annotation<string>(),         // Giọng đọc do người dùng chọn
   youtubeUrl: Annotation<string>(),    // Link youtube (cho youtube pipeline)
+  // === Execution Log ===
+  error: Annotation<string | null>(),
+  tokenUsage: Annotation<{ promptTokens: number; completionTokens: number; totalTokens: number }>({
+    reducer: (prev, curr) => ({
+      promptTokens: (prev?.promptTokens || 0) + (curr?.promptTokens || 0),
+      completionTokens: (prev?.completionTokens || 0) + (curr?.completionTokens || 0),
+      totalTokens: (prev?.totalTokens || 0) + (curr?.totalTokens || 0),
+    }),
+    default: () => ({ promptTokens: 0, completionTokens: 0, totalTokens: 0 }),
+  }),
 
   // === Intermediate Output: YoutubeFetcher ===
   youtubeTitle: Annotation<string>(),
@@ -49,9 +59,6 @@ export const StoryShadowingState = Annotation.Root({
   }>>({
     reducer: (_, y) => y,
   }),
-  
-  // === Lỗi nếu có ===
-  error: Annotation<string | null>(),
 });
 
 export type StoryShadowingStateType = typeof StoryShadowingState.State;

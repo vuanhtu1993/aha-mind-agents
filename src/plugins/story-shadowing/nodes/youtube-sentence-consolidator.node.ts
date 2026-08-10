@@ -78,11 +78,19 @@ export class YoutubeSentenceConsolidatorNode {
       const chunkResults = await Promise.all(chunkPromises);
 
       let allSentences: any[] = [];
-      let overallLevel = chunkResults[0]?.level || 'medium';
+      let overallLevel = chunkResults[0]?.parsed?.level || 'medium';
+      
+      let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
       let currentId = 0;
       for (let i = 0; i < chunkResults.length; i++) {
-        const parsed = chunkResults[i];
+        const parsed = chunkResults[i].parsed;
+        const usage = chunkResults[i].usage;
+        
+        totalUsage.promptTokens += usage.promptTokens;
+        totalUsage.completionTokens += usage.completionTokens;
+        totalUsage.totalTokens += usage.totalTokens;
+        
         const offset = chunkOffsets[i];
         for (const s of parsed.sentences) {
           s.id = currentId++;
@@ -141,6 +149,7 @@ export class YoutubeSentenceConsolidatorNode {
         rawSentences: allSentences,
         level: overallLevel as 'easy'|'medium'|'hard',
         sentences: allSentences.map(s => ({ ...s, audioBase64: '' })), // Youtube không chạy qua TTS
+        tokenUsage: totalUsage,
       };
     } catch (err: any) {
       this.logger.error(`❌ Lỗi Youtube Consolidator: ${err.message}`);

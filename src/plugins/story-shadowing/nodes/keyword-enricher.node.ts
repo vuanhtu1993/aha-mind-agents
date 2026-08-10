@@ -67,12 +67,16 @@ Keep explanations concise and pedagogical. Output an array of items matching the
       const wordItems = state.identifiedKeywords.filter(item => item.type === 'word');
 
       // Chạy song song Gemini và Dictionary API
-      const [parsed, dictResults] = await Promise.all([
+      const [response, dictResults] = await Promise.all([
         this.gemini.invokeStructured(GeminiBatchKeywordEnrichSchema, [
-          { role: 'user', content: this.getBatchEnrichmentPrompt(state.identifiedKeywords) }
-        ]),
+          { role: 'system', content: this.getBatchEnrichmentPrompt(wordItems) },
+          { role: 'user', content: 'START' }
+        ], { temperature: 0.1, name: 'enrich_keywords' }),
         Promise.all(wordItems.map(item => this.fetchDictionaryIpa(item.word)))
       ]);
+
+      const parsed = response.parsed;
+      const usage = response.usage;
 
       // Map kết quả Dictionary API
       const dictMap = new Map<string, { ipa: string, audioUrl: string }>();
@@ -101,7 +105,11 @@ Keep explanations concise and pedagogical. Output an array of items matching the
       }
 
       this.logger.log(`✅ Giải nghĩa thành công ${enrichedKeywords.length} từ vựng.`);
-      return { keywords: enrichedKeywords as any }; // Bỏ qua validate strict kiểu của IPA
+
+      return {
+        keywords: enrichedKeywords,
+        tokenUsage: usage,
+      };
     } catch (err: any) {
       this.logger.error(`❌ Lỗi Keyword Enricher: ${err.message}`);
       return { keywords: [] };

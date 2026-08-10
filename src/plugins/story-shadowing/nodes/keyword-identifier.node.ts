@@ -39,13 +39,23 @@ export class KeywordIdentifierNode {
     this.logger.log('Đang nhận diện từ vựng khó (Keywords)...');
 
     try {
-      const parsed = await this.gemini.invokeStructured(IdentifiedKeywordListSchema, [
+      const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: textToAnalyze },
-      ]);
+      ] as any;
+
+      const response = await this.gemini.invokeStructured(
+        IdentifiedKeywordListSchema,
+        messages,
+        { temperature: 0.1, name: 'extract_difficult_keywords' }
+      );
       
-      this.logger.log(`✅ Nhận diện thành công ${parsed.items.length} từ vựng khó.`);
-      return { identifiedKeywords: parsed.items };
+      this.logger.log(`✅ Trích xuất thành công ${response.parsed.items.length} từ vựng khó.`);
+
+      return {
+        identifiedKeywords: response.parsed.items,
+        tokenUsage: response.usage,
+      };
     } catch (err: any) {
       this.logger.error(`❌ Lỗi Keyword Identifier: ${err.message}`);
       return { identifiedKeywords: [] };
