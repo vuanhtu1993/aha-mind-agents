@@ -49,7 +49,19 @@ export class YoutubeToolService {
         (YoutubeTranscript as any).__patchedForManualSubtitles = true;
       }
 
-      const transcript = await YoutubeTranscript.fetchTranscript(videoUrlOrId);
+      // --- Custom Fetcher với Cookie để bypass Youtube Consent Screen trên Vercel ---
+      const customFetch = (url: any, options?: any) => {
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...options?.headers,
+            'Cookie': 'CONSENT=YES+cb; i18n_redirected=1;',
+            'Accept-Language': 'en-US,en;q=0.9',
+          }
+        });
+      };
+
+      const transcript = await YoutubeTranscript.fetchTranscript(videoUrlOrId, { fetch: customFetch as any });
       this.logger.log(`✅ Tải thành công ${transcript.length} đoạn phụ đề.`);
       return transcript;
     } catch (error: any) {

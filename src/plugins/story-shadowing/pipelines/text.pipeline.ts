@@ -52,20 +52,24 @@ export class TextPipelineService {
           for await (const chunk of await app.stream(finalState)) {
             // Phát event cập nhật tiến độ
             if (chunk.sentenceSplitter) {
-              subscriber.next({ stepId: 'sentenceSplitter', status: 'completed', progress: 30, message: 'Đã phân tách câu và IPA' });
               finalState = { ...finalState, ...chunk.sentenceSplitter };
+              if (finalState.error) break;
+              subscriber.next({ stepId: 'sentenceSplitter', status: 'completed', progress: 30, message: 'Đã phân tách câu và IPA' });
             }
             if (chunk.ttsGenerator) {
-              subscriber.next({ stepId: 'ttsGenerator', status: 'completed', progress: 80, message: 'Hoàn thành tổng hợp âm thanh TTS' });
               finalState = { ...finalState, ...chunk.ttsGenerator };
+              if (finalState.error) break;
+              subscriber.next({ stepId: 'ttsGenerator', status: 'completed', progress: 80, message: 'Hoàn thành tổng hợp âm thanh TTS' });
             }
             if (chunk.keywordIdentifier) {
-              subscriber.next({ stepId: 'keywordIdentifier', status: 'completed', progress: 50, message: 'Đã trích xuất từ vựng khó' });
               finalState = { ...finalState, ...chunk.keywordIdentifier };
+              if (finalState.error) break;
+              subscriber.next({ stepId: 'keywordIdentifier', status: 'completed', progress: 50, message: 'Đã trích xuất từ vựng khó' });
             }
             if (chunk.keywordEnricher) {
-              subscriber.next({ stepId: 'keywordEnricher', status: 'completed', progress: 95, message: 'Hoàn thành giải nghĩa từ vựng' });
               finalState = { ...finalState, ...chunk.keywordEnricher };
+              if (finalState.error) break;
+              subscriber.next({ stepId: 'keywordEnricher', status: 'completed', progress: 95, message: 'Hoàn thành giải nghĩa từ vựng' });
             }
           }
 

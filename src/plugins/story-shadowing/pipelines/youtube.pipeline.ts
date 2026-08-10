@@ -49,20 +49,24 @@ export class YoutubePipelineService {
           
           for await (const chunk of await app.stream(finalState)) {
             if (chunk.youtubeFetcher) {
-              subscriber.next({ stepId: 'youtubeFetcher', status: 'completed', progress: 20, message: 'Đã tải phụ đề từ YouTube' });
               finalState = { ...finalState, ...chunk.youtubeFetcher };
+              if (finalState.error) break;
+              subscriber.next({ stepId: 'youtubeFetcher', status: 'completed', progress: 20, message: 'Đã tải phụ đề từ YouTube' });
             }
             if (chunk.youtubeConsolidator) {
-              subscriber.next({ stepId: 'youtubeConsolidator', status: 'completed', progress: 50, message: 'Đã gộp câu và tạo IPA bằng AI' });
               finalState = { ...finalState, ...chunk.youtubeConsolidator };
+              if (finalState.error) break;
+              subscriber.next({ stepId: 'youtubeConsolidator', status: 'completed', progress: 50, message: 'Đã gộp câu và tạo IPA bằng AI' });
             }
             if (chunk.keywordIdentifier) {
-              subscriber.next({ stepId: 'keywordIdentifier', status: 'completed', progress: 70, message: 'Đã trích xuất từ vựng khó' });
               finalState = { ...finalState, ...chunk.keywordIdentifier };
+              if (finalState.error) break;
+              subscriber.next({ stepId: 'keywordIdentifier', status: 'completed', progress: 70, message: 'Đã trích xuất từ vựng khó' });
             }
             if (chunk.keywordEnricher) {
-              subscriber.next({ stepId: 'keywordEnricher', status: 'completed', progress: 95, message: 'Hoàn thành giải nghĩa từ vựng' });
               finalState = { ...finalState, ...chunk.keywordEnricher };
+              if (finalState.error) break;
+              subscriber.next({ stepId: 'keywordEnricher', status: 'completed', progress: 95, message: 'Hoàn thành giải nghĩa từ vựng' });
             }
           }
 
