@@ -24,7 +24,102 @@ export class StoryShadowingPlugin implements AgentPlugin {
     id: 'story-shadowing',
     displayName: 'Story Shadowing Agent',
     description: 'Tạo bài học tiếng Anh theo phương pháp Shadowing từ văn bản thuần hoặc video YouTube.',
-    pipelines: ['text', 'youtube'],
+    pipelines: [
+      {
+        id: 'text',
+        displayName: 'Xử lý Văn bản thuần',
+        nodes: [
+          {
+            id: 'sentenceSplitter',
+            type: 'llm',
+            displayName: 'Phân tách câu & Phiên âm IPA',
+            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            defaultConfig: {
+              systemPrompt: `You are a language learning assistant and phonetics expert.\nGiven a raw English text, break it down into natural, logical sentences for shadowing practice.`,
+              temperature: 0.1
+            }
+          },
+          {
+            id: 'ttsGenerator',
+            type: 'tool',
+            displayName: 'Tạo giọng đọc (TTS)',
+            configurableOptions: []
+          },
+          {
+            id: 'keywordIdentifier',
+            type: 'llm',
+            displayName: 'Trích xuất từ vựng khó',
+            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            defaultConfig: {
+              systemPrompt: `You are a professional lexicographer and curriculum designer for English learners. Your task is to identify and extract difficult vocabulary, idioms, and phrasal verbs from the provided English text.`,
+              temperature: 0.1
+            }
+          },
+          {
+            id: 'keywordEnricher',
+            type: 'llm',
+            displayName: 'Giải nghĩa từ vựng',
+            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            defaultConfig: {
+              systemPrompt: `You are an English teacher explaining vocabulary to a B1-B2 learner.\nFor EACH item, provide a clear, simple explanation (in Vietnamese if helpful, or simple English) of what this item means EXACTLY IN THIS CONTEXT.`,
+              temperature: 0.1
+            }
+          }
+        ],
+        edges: [
+          { source: 'sentenceSplitter', target: 'ttsGenerator' },
+          { source: 'sentenceSplitter', target: 'keywordIdentifier' },
+          { source: 'keywordIdentifier', target: 'keywordEnricher' }
+        ]
+      },
+      {
+        id: 'youtube',
+        displayName: 'Xử lý Video YouTube',
+        nodes: [
+          {
+            id: 'youtubeFetcher',
+            type: 'tool',
+            displayName: 'Tải phụ đề từ YouTube',
+            configurableOptions: []
+          },
+          {
+            id: 'youtubeConsolidator',
+            type: 'llm',
+            displayName: 'Xử lý gộp câu & Phiên âm IPA',
+            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            defaultConfig: {
+              systemPrompt: `You are an expert linguist and audio synchronizer.\nYour task is to take a list of raw subtitle fragments from YouTube and consolidate them into complete, grammatically correct, natural-sounding sentences.`,
+              temperature: 0.1
+            }
+          },
+          {
+            id: 'keywordIdentifier',
+            type: 'llm',
+            displayName: 'Trích xuất từ vựng khó',
+            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            defaultConfig: {
+              systemPrompt: `You are a professional lexicographer and curriculum designer for English learners. Your task is to identify and extract difficult vocabulary, idioms, and phrasal verbs from the provided English text.`,
+              temperature: 0.1
+            }
+          },
+          {
+            id: 'keywordEnricher',
+            type: 'llm',
+            displayName: 'Giải nghĩa từ vựng',
+            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            defaultConfig: {
+              systemPrompt: `You are an English teacher explaining vocabulary to a B1-B2 learner.\nFor EACH item, provide a clear, simple explanation (in Vietnamese if helpful, or simple English) of what this item means EXACTLY IN THIS CONTEXT.`,
+              temperature: 0.1
+            }
+          }
+        ],
+        edges: [
+          { source: 'youtubeFetcher', target: 'youtubeConsolidator' },
+          { source: 'youtubeConsolidator', target: 'keywordIdentifier' },
+          { source: 'keywordIdentifier', target: 'keywordEnricher' }
+        ]
+      }
+    ],
   };
 
   constructor(

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AHA_MIND_CONNECTION } from '../../infra/database/database.constants';
@@ -7,7 +7,7 @@ import { AgentConfig } from '../../infra/database/schemas/agent-config.schema';
 import { PluginRegistryService } from '../../core/services/plugin-registry.service';
 
 @Injectable()
-export class DashboardService {
+export class DashboardService implements OnModuleInit {
   private readonly logger = new Logger(DashboardService.name);
 
   constructor(
@@ -15,6 +15,49 @@ export class DashboardService {
     @InjectModel(AgentConfig.name, AHA_MIND_CONNECTION) private readonly configModel: Model<AgentConfig>,
     private readonly pluginRegistry: PluginRegistryService,
   ) { }
+
+  async onModuleInit() {
+    this.logger.log('Đang đồng bộ Metadata của các Plugin xuống AgentConfig...');
+    const plugins = this.pluginRegistry['plugins'];
+    
+    for (const [agentId, plugin] of plugins.entries()) {
+      const metadata = plugin.metadata;
+      
+      // Tạo một object chứa toàn bộ defaultConfig của các nodes
+      const defaultNodeOverrides: Record<string, any> = {};
+      
+      if (metadata.pipelines && Array.isArray(metadata.pipelines)) {
+        metadata.pipelines.forEach((pipeline: any) => {
+          if (pipeline.nodes && Array.isArray(pipeline.nodes)) {
+            pipeline.nodes.forEach((node: any) => {
+              if (node.defaultConfig) {
+                defaultNodeOverrides[node.id] = { ...node.defaultConfig };
+              }
+            });
+          }
+        });
+      }
+
+      // Upsert vào Database, nhưng CHỈ INSERT ($setOnInsert) nếu document chưa tồn tại, 
+      // để không ghi đè lên các cấu hình mà Admin đã sửa trên Dashboard.
+      await this.configModel.findOneAndUpdate(
+        { agentId },
+        { 
+          $setOnInsert: {
+            agentId,
+            defaultModel: 'gemini-2.5-flash',
+            temperature: 0.1,
+            maxRetries: 2,
+            isActive: true,
+            nodeOverrides: defaultNodeOverrides
+          }
+        },
+        { upsert: true }
+      );
+    }
+    
+    this.logger.log('Đồng bộ Metadata hoàn tất.');
+  }
 
   async getMetrics() {
     const totalRuns = await this.execLogModel.countDocuments();

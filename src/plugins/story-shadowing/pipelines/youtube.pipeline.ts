@@ -45,26 +45,30 @@ export class YoutubePipelineService {
             subscriber.next({ status: 'running', message: 'Heartbeat ping' });
           }, 15000);
 
-          let finalState: any = { youtubeUrl: input.youtubeUrl };
+          const finalState: Partial<StoryShadowingStateType> = {
+            youtubeUrl: input.youtubeUrl,
+            config: context.config,
+          };
           
           for await (const chunk of await app.stream(finalState)) {
+            // Phát event cập nhật tiến độ
             if (chunk.youtubeFetcher) {
-              finalState = { ...finalState, ...chunk.youtubeFetcher };
+              Object.assign(finalState, chunk.youtubeFetcher);
               if (finalState.error) break;
-              subscriber.next({ stepId: 'youtubeFetcher', status: 'completed', progress: 20, message: 'Đã tải phụ đề từ YouTube' });
+              subscriber.next({ stepId: 'youtubeFetcher', status: 'completed', progress: 30, message: 'Đã tải phụ đề từ YouTube' });
             }
             if (chunk.youtubeConsolidator) {
-              finalState = { ...finalState, ...chunk.youtubeConsolidator };
+              Object.assign(finalState, chunk.youtubeConsolidator);
               if (finalState.error) break;
-              subscriber.next({ stepId: 'youtubeConsolidator', status: 'completed', progress: 50, message: 'Đã gộp câu và tạo IPA bằng AI' });
+              subscriber.next({ stepId: 'youtubeConsolidator', status: 'completed', progress: 50, message: 'Đã gộp câu và phiên âm IPA' });
             }
             if (chunk.keywordIdentifier) {
-              finalState = { ...finalState, ...chunk.keywordIdentifier };
+              Object.assign(finalState, chunk.keywordIdentifier);
               if (finalState.error) break;
-              subscriber.next({ stepId: 'keywordIdentifier', status: 'completed', progress: 70, message: 'Đã trích xuất từ vựng khó' });
+              subscriber.next({ stepId: 'keywordIdentifier', status: 'completed', progress: 75, message: 'Đã trích xuất từ vựng khó' });
             }
             if (chunk.keywordEnricher) {
-              finalState = { ...finalState, ...chunk.keywordEnricher };
+              Object.assign(finalState, chunk.keywordEnricher);
               if (finalState.error) break;
               subscriber.next({ stepId: 'keywordEnricher', status: 'completed', progress: 95, message: 'Hoàn thành giải nghĩa từ vựng' });
             }

@@ -7,6 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AHA_MIND_CONNECTION } from '../../infra/database/database.constants';
 import { AgentExecLog } from '../../infra/database/schemas/agent-log.schema';
+import { AgentConfig } from '../../infra/database/schemas/agent-config.schema';
 
 @ApiTags('Agents (Gateway)')
 @Controller('v1/agents')
@@ -16,27 +17,24 @@ export class AgentsController {
   constructor(
     private readonly pluginRegistry: PluginRegistryService,
     @InjectModel(AgentExecLog.name, AHA_MIND_CONNECTION) private readonly agentExecLogModel: Model<AgentExecLog>,
+    @InjectModel(AgentConfig.name, AHA_MIND_CONNECTION) private readonly agentConfigModel: Model<AgentConfig>,
   ) { }
 
   /**
    * Lấy danh sách toàn bộ các plugins đang hoạt động
    */
   @Get()
-  @ApiOperation({ summary: 'Lấy danh sách Plugins', description: 'Trả về toàn bộ Agent Plugins đang được đăng ký trong hệ thống.' })
-  @ApiResponse({ status: 200, description: 'Lấy danh sách thành công.' })
-  getAvailablePlugins() {
-    return {
-      success: true,
-      data: this.pluginRegistry.getAvailablePlugins(),
-    };
+  @ApiOperation({ summary: 'Lấy danh sách các Agents Plugin' })
+  async listPlugins() {
+    return Array.from(this.pluginRegistry['plugins'].values()).map(p => p.metadata);
   }
 
   /**
-   * Xử lý thực thi Agent Pipeline và trả về luồng SSE bằng phương thức POST.
+   * API Khởi chạy Pipeline (Server-Sent Events)
    */
   @Post(':pluginId/:pipeline/stream')
-  @ApiOperation({ summary: 'Thực thi Agent', description: 'Gửi yêu cầu tới Agent và nhận luồng dữ liệu tiến độ thời gian thực dạng SSE (Server-Sent Events).' })
-  @ApiParam({ name: 'plugin', example: 'story-shadowing', description: 'Tên của Plugin' })
+  @ApiOperation({ summary: 'Khởi chạy một Agent Pipeline và nhận luồng dữ liệu SSE' })
+  @ApiParam({ name: 'pluginId', example: 'story-shadowing', description: 'Tên của Plugin' })
   @ApiParam({ name: 'pipeline', example: 'text', description: 'Loại pipeline cần thực thi (vd: text, youtube)' })
   @ApiBody({
     description: 'Dữ liệu đầu vào phụ thuộc vào pipeline. \n- Với text: { "text": "Đoạn văn...", "voice": "FEMALE" } \n- Với youtube: { "youtubeUrl": "https..." }',
@@ -57,14 +55,14 @@ export class AgentsController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    const plugin = this.pluginRegistry.getPlugin(pluginId); // Tự động ném 404 nếu không thấy
-    const metadata = plugin.metadata;
-
-    if (!metadata.pipelines.includes(pipeline)) {
-      throw new HttpException(`Pipeline '${pipeline}' không tồn tại trong plugin '${pluginId}'. Các pipeline hợp lệ: ${metadata.pipelines.join(', ')}`, HttpStatus.BAD_REQUEST);
+    // Tìm Plugin
+    const plugin = this.pluginRegistry.getPlugin(pluginId);
+    if (!plugin) {
+      throw new HttpException('Agent Plugin không tồn tại', HttpStatus.NOT_FOUND);
     }
 
-    let validatedInput: any;
+    // Xác thực Input đầu vào
+    let validatedInput;
     try {
       validatedInput = await plugin.validateInput(pipeline, body);
     } catch (error: any) {
@@ -72,6 +70,14 @@ export class AgentsController {
         message: 'Dữ liệu đầu vào không hợp lệ',
         error: error.message || error,
       }, HttpStatus.BAD_REQUEST);
+    }
+
+    // Truy xuất cấu hình của Agent từ Database (Dynamic Configuration)
+    let agentConfig = null;
+    try {
+      agentConfig = await this.agentConfigModel.findOne({ agentId: pluginId }).lean();
+    } catch (err: any) {
+      this.logger.warn(`Không thể lấy cấu hình AgentConfig cho plugin ${pluginId}: ${err.message}`);
     }
 
     // Thiết lập HTTP Headers chuẩn cho SSE
@@ -97,6 +103,7 @@ export class AgentsController {
     // Tạo ExecutionContext
     const context = {
       jobId,
+      config: agentConfig,
       log: (message: string, meta?: any) => {
         this.logger.log(`[Job ${jobId}] ${message} ${meta ? JSON.stringify(meta) : ''}`);
       }

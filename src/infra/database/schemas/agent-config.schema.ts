@@ -9,8 +9,12 @@ export class AgentConfig extends Document {
   @Prop({ required: true, default: 'gemini-2.5-flash' })
   defaultModel: string;
 
-  @Prop()
-  systemPromptOverride?: string;
+  @Prop({ type: Object, default: {} })
+  nodeOverrides?: Record<string, {
+    systemPrompt?: string;
+    model?: string;
+    temperature?: number;
+  }>;
 
   @Prop({ default: 0.1, min: 0, max: 1 })
   temperature: number;

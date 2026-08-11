@@ -21,6 +21,25 @@ export interface ProgressEvent {
   payload?: any;
 }
 
+export interface NodeMetadata {
+  id: string; // VD: 'keywordIdentifier'
+  type: 'llm' | 'tool' | 'router' | 'logic' | 'human';
+  displayName: string;
+  configurableOptions: string[]; // VD: ['systemPrompt', 'model', 'temperature']
+  defaultConfig?: {
+    systemPrompt?: string;
+    model?: string;
+    temperature?: number;
+  };
+}
+
+export interface PipelineMetadata {
+  id: string; // VD: 'youtube', 'text'
+  displayName?: string;
+  nodes: NodeMetadata[];
+  edges: { source: string, target: string }[];
+}
+
 /**
  * Siêu dữ liệu khai báo thông tin của một Agent Plugin.
  */
@@ -28,7 +47,7 @@ export interface AgentPluginMetadata {
   id: string; // Khóa định danh duy nhất (VD: 'story-shadowing')
   displayName: string;
   description: string;
-  pipelines: string[]; // Các loại pipeline hỗ trợ (VD: ['text', 'youtube'])
+  pipelines: PipelineMetadata[]; // Các loại pipeline hỗ trợ và sơ đồ graph
 }
 
 /**
@@ -37,6 +56,7 @@ export interface AgentPluginMetadata {
 export interface ExecutionContext {
   jobId: string;
   userId?: string;
+  config?: any; // Cấu hình Agent đọc từ DB
   // Hàm log chuẩn hóa để ghi vết vào AgentExecLog sau này
   log: (message: string, meta?: any) => void;
 }

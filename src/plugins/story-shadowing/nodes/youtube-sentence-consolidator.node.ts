@@ -55,6 +55,11 @@ export class YoutubeSentenceConsolidatorNode {
       const chunkPromises = [];
       const chunkOffsets: number[] = [];
 
+      const nodeConfig = state.config?.nodeOverrides?.['youtubeConsolidator'] || {};
+      const prompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
+      const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
+      const model = nodeConfig.model || state.config?.defaultModel;
+
       for (let i = 0; i < transcriptToProcess.length; i += CHUNK_SIZE) {
         const chunk = transcriptToProcess.slice(i, i + CHUNK_SIZE);
         const timeOffset = chunk[0].offset;
@@ -68,10 +73,14 @@ export class YoutubeSentenceConsolidatorNode {
         const inputText = JSON.stringify(shiftedChunk);
 
         chunkPromises.push(
-          this.gemini.invokeStructured(GeminiYoutubeConsolidatedSchema, [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: inputText },
-          ])
+          this.gemini.invokeStructured(
+            GeminiYoutubeConsolidatedSchema, 
+            [
+              { role: 'system', content: prompt },
+              { role: 'user', content: inputText },
+            ],
+            { temperature: temp, model: model }
+          )
         );
       }
 

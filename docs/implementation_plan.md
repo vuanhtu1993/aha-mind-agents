@@ -23,7 +23,7 @@ graph TD
     P2 --> P3["Giai đoạn 3: Khung Plugin & Shared Tool Gateway\n(PluginRegistry, Gemini Tool, TTS Tool, YouTube Tool)"]
     P3 --> P4["Giai đoạn 4: Story Shadowing Agent Plugin\n(Text Pipeline + YouTube Pipeline + LangGraph)"]
     P4 --> P5["Giai đoạn 5: Unified Agent Controller & Real-Time SSE\n(POST /agents/:id/:pipeline + Keep-Alive Heartbeat)"]
-    P5 --> P6["Giai đoạn 6: Giám Sát & Dashboard Observability\n(Metrics, Execution Logs, Dynamic Configs)"]
+    P5 --> P6["✅ Giai đoạn 6: Giám Sát & Dashboard Observability\n(Metrics, Logs, Dynamic Node Configs)"]
     P6 --> P7["Giai đoạn 7: Nghiệm Thu & Tích Hợp PWA\n(E2E Testing, Swagger UI, Deploy Vercel Production)"]
 ```
 
@@ -84,10 +84,10 @@ graph TD
 ---
 
 ### Giai đoạn 6: Giám Sát & Dashboard Observability API
-- [ ] **Task 6.1:** `GET /api/dashboard/metrics`: Thống kê tổng số lượt chạy, tỉ lệ thành công, thời gian xử lý trung bình và tổng token tiêu thụ.
-- [ ] **Task 6.2:** `GET /api/dashboard/logs`: Xem lịch sử chi tiết từng lần chạy kèm timeline các node.
-- [ ] **Task 6.3:** `GET /api/dashboard/plugins`: Liệt kê danh sách các Plugin đang hoạt động trên hệ thống.
-- [ ] **Task 6.4:** `GET/PUT /api/dashboard/configs/:agentId`: Quản lý prompt và model động không cần redeploy code.
+- [x] **Task 6.1:** `GET /api/dashboard/metrics`: Thống kê tổng số lượt chạy, tỉ lệ thành công, thời gian xử lý trung bình và tổng token tiêu thụ.
+- [x] **Task 6.2:** `GET /api/dashboard/logs`: Xem lịch sử chi tiết từng lần chạy kèm timeline các node.
+- [x] **Task 6.3:** `GET /api/dashboard/plugins`: Liệt kê danh sách các Plugin đang hoạt động trên hệ thống (Hỗ trợ cấu trúc Node Metadata).
+- [x] **Task 6.4:** `GET/PUT /api/dashboard/configs/:agentId`: Quản lý prompt và model động theo từng Node (Node-level Overrides) không cần redeploy code.
 
 ---
 

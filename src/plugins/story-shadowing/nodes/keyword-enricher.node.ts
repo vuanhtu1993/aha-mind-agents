@@ -9,24 +9,23 @@ export class KeywordEnricherNode {
 
   constructor(private readonly gemini: GeminiRotatorService) { }
 
-  private getBatchEnrichmentPrompt(items: IdentifiedKeywordItem[]) {
+  private getBatchEnrichmentUserPrompt(items: IdentifiedKeywordItem[]) {
     const itemsListStr = items.map((item, i) => `
 [Item ${i + 1}]
 - Word/Phrase: "${item.word}"
 - Type: ${item.type}
 - Context: "${item.context}"`).join('\n');
 
-    return `You are an English teacher explaining vocabulary to a B1-B2 learner.
-The student encountered the following items in a reading text:
+    return `The student encountered the following items in a reading text:
 ${itemsListStr}
 
 For EACH item, provide:
 1. "word": the exact Word/Phrase from the input to match them.
-2. "explanation": A clear, simple explanation (in Vietnamese if helpful, or simple English) of what this item means EXACTLY IN THIS CONTEXT. Include a short example of usage if it's an idiom/phrasal verb.
+2. "explanation": A clear, simple explanation of what this item means EXACTLY IN THIS CONTEXT.
 3. "wordFamily": 1-3 related words (e.g. noun form, adjective form).
 4. "collocations": 1-3 common collocations for this item.
 
-Keep explanations concise and pedagogical. Output an array of items matching the schema.`;
+Output an array of items matching the schema.`;
   }
 
   private async fetchDictionaryIpa(word: string): Promise<{ ipa: string, audioUrl: string } | null> {
@@ -60,7 +59,14 @@ Keep explanations concise and pedagogical. Output an array of items matching the
       return { keywords: [] };
     }
 
+
     this.logger.log(`Đang phân tích sâu và giải nghĩa ${state.identifiedKeywords.length} từ vựng...`);
+
+    const nodeConfig = state.config?.nodeOverrides?.['keywordEnricher'] || {};
+    const defaultSystemPrompt = `You are an English teacher explaining vocabulary to a B1-B2 learner.\nFor EACH item, provide a clear, simple explanation (in Vietnamese if helpful, or simple English) of what this item means EXACTLY IN THIS CONTEXT. Keep explanations concise and pedagogical.`;
+    const prompt = nodeConfig.systemPrompt || defaultSystemPrompt;
+    const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
+    const model = nodeConfig.model || state.config?.defaultModel;
 
     try {
       // Tách riêng các từ đơn (word) để gọi Dictionary API
@@ -69,9 +75,9 @@ Keep explanations concise and pedagogical. Output an array of items matching the
       // Chạy song song Gemini và Dictionary API
       const [response, dictResults] = await Promise.all([
         this.gemini.invokeStructured(GeminiBatchKeywordEnrichSchema, [
-          { role: 'system', content: this.getBatchEnrichmentPrompt(wordItems) },
-          { role: 'user', content: 'START' }
-        ], { temperature: 0.1, name: 'enrich_keywords' }),
+          { role: 'system', content: prompt },
+          { role: 'user', content: this.getBatchEnrichmentUserPrompt(state.identifiedKeywords) }
+        ], { temperature: temp, model: model, name: 'enrich_keywords' }),
         Promise.all(wordItems.map(item => this.fetchDictionaryIpa(item.word)))
       ]);
 

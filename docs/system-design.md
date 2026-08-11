@@ -106,7 +106,7 @@ graph TD
 │   Database: `aha-mind` (Management & Observability)                              │
 │   ┌──────────────────────────────────────────────────────────────────────────┐   │
 │   │ Collection: `agent_exec_logs` (Lịch sử chạy, token usage, latency)       │   │
-│   │ Collection: `agent_configs`   (Cấu hình System Prompt & Models động)     │   │
+│   │ Collection: `agent_configs`   (Ghi đè System Prompt/Model cấp độ Node)   │   │
 │   └──────────────────────────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -137,11 +137,30 @@ export interface ProgressEvent {
   payload?: any;
 }
 
+export interface NodeMetadata {
+  id: string; // e.g., 'keywordIdentifier'
+  type: 'llm' | 'tool' | 'router' | 'logic' | 'human';
+  displayName: string;
+  configurableOptions: string[]; // e.g., ['systemPrompt', 'model', 'temperature']
+  defaultConfig?: {
+    systemPrompt?: string;
+    model?: string;
+    temperature?: number;
+  };
+}
+
+export interface PipelineMetadata {
+  id: string; // e.g., 'youtube', 'text'
+  displayName?: string;
+  nodes: NodeMetadata[];
+  edges: { source: string, target: string }[];
+}
+
 export interface AgentPluginMetadata {
   id: string; // e.g., 'story-shadowing'
   displayName: string;
   description: string;
-  pipelines: string[]; // ['text', 'youtube', 'create-series']
+  pipelines: PipelineMetadata[]; // Khai báo rõ ràng Node, Edge và Cấu hình mặc định
 }
 
 export interface AgentPlugin {
@@ -170,6 +189,7 @@ export interface AgentPlugin {
 export interface ExecutionContext {
   jobId: string;
   userId?: string;
+  config?: any; // Cấu hình Agent đọc từ DB (agent_configs) được nhúng vào context
   log: (message: string, meta?: any) => void;
 }
 ```

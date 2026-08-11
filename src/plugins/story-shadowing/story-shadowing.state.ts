@@ -6,6 +6,10 @@ export const StoryShadowingState = Annotation.Root({
   rawText: Annotation<string>(),       // Văn bản thô do người dùng nhập (cho text pipeline)
   voice: Annotation<string>(),         // Giọng đọc do người dùng chọn
   youtubeUrl: Annotation<string>(),    // Link youtube (cho youtube pipeline)
+  
+  // === CONFIG ===
+  config: Annotation<any>(),           // Chứa AgentConfig (Model, System Prompts...) đọc từ DB
+  
   // === Execution Log ===
   error: Annotation<string | null>(),
   tokenUsage: Annotation<{ promptTokens: number; completionTokens: number; totalTokens: number }>({

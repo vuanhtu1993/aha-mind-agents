@@ -38,16 +38,21 @@ export class KeywordIdentifierNode {
 
     this.logger.log('Đang nhận diện từ vựng khó (Keywords)...');
 
+    const nodeConfig = state.config?.nodeOverrides?.['keywordIdentifier'] || {};
+    const prompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
+    const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
+    const model = nodeConfig.model || state.config?.defaultModel;
+
     try {
       const messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: prompt },
         { role: 'user', content: textToAnalyze },
       ] as any;
 
       const response = await this.gemini.invokeStructured(
         IdentifiedKeywordListSchema,
         messages,
-        { temperature: 0.1, name: 'extract_difficult_keywords' }
+        { temperature: temp, model: model, name: 'extract_difficult_keywords' }
       );
       
       this.logger.log(`✅ Trích xuất thành công ${response.parsed.items.length} từ vựng khó.`);

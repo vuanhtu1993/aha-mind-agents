@@ -55,12 +55,12 @@ export class GeminiRotatorService implements OnModuleInit {
   /**
    * Lấy một instance của LLM với Key đang khả dụng.
    */
-  public getModelWithOptions(options?: { temperature?: number, searchGrounding?: boolean }): ChatGoogleGenerativeAI {
+  public getModelWithOptions(options?: { temperature?: number, searchGrounding?: boolean, model?: string }): ChatGoogleGenerativeAI {
     const activeKey = this.getActiveKey();
     
     const config: any = {
       apiKey: activeKey,
-      model: this.configService.get<string>('GEMINI_MODEL', 'gemini-2.5-flash'),
+      model: options?.model || this.configService.get<string>('GEMINI_MODEL', 'gemini-2.5-flash'),
       temperature: options?.temperature ?? 0.1,
       maxRetries: 2,
     };
@@ -142,7 +142,7 @@ export class GeminiRotatorService implements OnModuleInit {
   /**
    * Gọi LLM trả về text.
    */
-  public async invoke(messages: any[], options?: { temperature?: number, searchGrounding?: boolean }): Promise<{ text: string, usage: { promptTokens: number, completionTokens: number, totalTokens: number } }> {
+  public async invoke(messages: any[], options?: { temperature?: number, searchGrounding?: boolean, model?: string }): Promise<{ text: string, usage: { promptTokens: number, completionTokens: number, totalTokens: number } }> {
     return this.executeWithFailover(async () => {
       const model = this.getModelWithOptions(options);
       const response = await model.invoke(messages);
@@ -160,7 +160,7 @@ export class GeminiRotatorService implements OnModuleInit {
   /**
    * Gọi LLM trả về JSON Structured Output.
    */
-  public async invokeStructured(schema: any, prompt: string | any[], options?: { temperature?: number, name?: string }): Promise<{ parsed: any, usage: { promptTokens: number, completionTokens: number, totalTokens: number } }> {
+  public async invokeStructured(schema: any, prompt: string | any[], options?: { temperature?: number, name?: string, model?: string }): Promise<{ parsed: any, usage: { promptTokens: number, completionTokens: number, totalTokens: number } }> {
     return this.executeWithFailover(async () => {
       const model = this.getModelWithOptions(options);
       const structuredOptions = options?.name ? { name: options.name, includeRaw: true } : { includeRaw: true };

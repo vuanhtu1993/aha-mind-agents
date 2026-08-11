@@ -47,27 +47,31 @@ export class TextPipelineService {
             subscriber.next({ status: 'running', message: 'Heartbeat ping' });
           }, 15000);
 
-          let finalState: any = { rawText: input.text, voice: input.voice || 'FEMALE' };
+          const finalState: Partial<StoryShadowingStateType> = {
+            rawText: input.text,
+            voice: input.voice || 'FEMALE',
+            config: context.config,
+          };
           
           for await (const chunk of await app.stream(finalState)) {
             // Phát event cập nhật tiến độ
             if (chunk.sentenceSplitter) {
-              finalState = { ...finalState, ...chunk.sentenceSplitter };
+              Object.assign(finalState, chunk.sentenceSplitter);
               if (finalState.error) break;
               subscriber.next({ stepId: 'sentenceSplitter', status: 'completed', progress: 30, message: 'Đã phân tách câu và IPA' });
             }
             if (chunk.ttsGenerator) {
-              finalState = { ...finalState, ...chunk.ttsGenerator };
+              Object.assign(finalState, chunk.ttsGenerator);
               if (finalState.error) break;
               subscriber.next({ stepId: 'ttsGenerator', status: 'completed', progress: 80, message: 'Hoàn thành tổng hợp âm thanh TTS' });
             }
             if (chunk.keywordIdentifier) {
-              finalState = { ...finalState, ...chunk.keywordIdentifier };
+              Object.assign(finalState, chunk.keywordIdentifier);
               if (finalState.error) break;
               subscriber.next({ stepId: 'keywordIdentifier', status: 'completed', progress: 50, message: 'Đã trích xuất từ vựng khó' });
             }
             if (chunk.keywordEnricher) {
-              finalState = { ...finalState, ...chunk.keywordEnricher };
+              Object.assign(finalState, chunk.keywordEnricher);
               if (finalState.error) break;
               subscriber.next({ stepId: 'keywordEnricher', status: 'completed', progress: 95, message: 'Hoàn thành giải nghĩa từ vựng' });
             }
