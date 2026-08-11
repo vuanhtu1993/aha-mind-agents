@@ -18,22 +18,12 @@ import { join } from 'path';
  * - isGlobal: true -> Biến môi trường có thể inject ở bất cứ service/module nào.
  * - validate: validateEnv -> Kiểm tra hợp lệ bằng Zod ngay khi app khởi động.
  */
-// Sử dụng kỹ thuật ngắt chuỗi để bypass Vercel's Node File Tracer (nft)
-// Nếu để nguyên 'public', Vercel sẽ tự động bundle toàn bộ Frontend SPA vào Serverless Function
-// và tự động transpile ESM -> CommonJS gây ra lỗi FUNCTION_INVOCATION_FAILED.
-const getPublicPath = () => join(process.cwd(), ['p', 'u', 'b', 'l', 'i', 'c'].join(''));
-
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
     }),
-    ...(process.env.VERCEL !== '1' ? [
-      ServeStaticModule.forRoot({
-        rootPath: getPublicPath(),
-      })
-    ] : []),
     DatabaseModule,
     CoreModule,
     HealthModule,
