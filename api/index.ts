@@ -63,8 +63,17 @@ async function bootstrapServerless() {
 }
 
 export default async function handler(req: Request, res: Response) {
-  if (!isAppInitialized) {
-    await bootstrapServerless();
+  try {
+    if (!isAppInitialized) {
+      await bootstrapServerless();
+    }
+    server(req, res);
+  } catch (error: any) {
+    console.error('CRITICAL ERROR IN BOOTSTRAP:', error);
+    res.status(500).json({
+      error: 'FUNCTION_INVOCATION_FAILED',
+      message: error?.message || 'Unknown error',
+      stack: error?.stack,
+    });
   }
-  server(req, res);
 }
