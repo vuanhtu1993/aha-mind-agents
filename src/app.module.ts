@@ -8,6 +8,9 @@ import { StoryShadowingModule } from './plugins/story-shadowing/story-shadowing.
 import { AgentsModule } from './api/agents/agents.module';
 import { DashboardModule } from './api/dashboard/dashboard.module';
 
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+
 /**
  * AppModule là Root Module trung tâm kết nối toàn bộ các thành phần của Gateway.
  *
@@ -20,6 +23,9 @@ import { DashboardModule } from './api/dashboard/dashboard.module';
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public'),
     }),
     DatabaseModule,
     CoreModule,

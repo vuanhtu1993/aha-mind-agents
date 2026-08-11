@@ -20,5 +20,11 @@
     "paths": {
       "src/*": ["src/*"]
     }
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "admin-ui",
+    "public"
+  ]
 }

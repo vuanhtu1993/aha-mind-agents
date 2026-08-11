@@ -24,7 +24,7 @@ graph TD
     P3 --> P4["Giai đoạn 4: Story Shadowing Agent Plugin\n(Text Pipeline + YouTube Pipeline + LangGraph)"]
     P4 --> P5["Giai đoạn 5: Unified Agent Controller & Real-Time SSE\n(POST /agents/:id/:pipeline + Keep-Alive Heartbeat)"]
     P5 --> P6["✅ Giai đoạn 6: Giám Sát & Dashboard Observability\n(Metrics, Logs, Dynamic Node Configs)"]
-    P6 --> P7["Giai đoạn 7: Nghiệm Thu & Tích Hợp PWA\n(E2E Testing, Swagger UI, Deploy Vercel Production)"]
+    P6 --> P7["Giai đoạn 7: Embedded Admin Dashboard\n(Vite React SPA, Vercel Static Edge)"]
 ```
 
 ---
@@ -91,11 +91,13 @@ graph TD
 
 ---
 
-### Giai đoạn 7: Nghiệm Thu & Tích Hợp Với aha-tools PWA
-- [ ] **Task 7.1:** Viết Unit Tests & Integration Tests toàn diện cho Plugin và Gateway.
-- [ ] **Task 7.2:** Chạy kiểm thử End-to-End với văn bản thực tế và link YouTube thực tế.
-- [ ] **Task 7.3:** Cập nhật Swagger API Docs đầy đủ schema request/response.
-- [ ] **Task 7.4:** Deploy lên Vercel Production và nghiệm thu thực tế.
+### Giai đoạn 7: Embedded Admin Dashboard (Vite React SPA)
+- [ ] **Task 7.1:** Khởi tạo thư mục `admin-ui` bằng Vite (React + Tailwind) bên trong `aha-mind-agents`. Cấu hình build outDir trỏ ra `public/` của NestJS.
+- [ ] **Task 7.2:** Xây dựng UI Component kết nối với Dashboard API:
+  - Bảng Metrics (thống kê token, tỉ lệ lỗi).
+  - Bảng AgentExecLog (xem chi tiết timeline chạy pipeline).
+- [ ] **Task 7.3:** Giao diện Dynamic Configurator: Cho phép admin chỉnh sửa trực tiếp `System Prompt` và `Model` của các AI Nodes và lưu xuống DB thông qua `PUT /api/v1/dashboard/configs`.
+- [ ] **Task 7.4:** Cấu hình NestJS `ServeStaticModule` để phục vụ thư mục `public/` khi chạy local, tận dụng CDN của Vercel phục vụ Frontend khi Deploy.
 
 ---
 

@@ -50,10 +50,10 @@ graph TD
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                        CONSUMERS (Client Applications)                          │
-│   ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐          │
-│   │  aha-tools PWA   │    │   Mobile App     │    │  Admin Dashboard │          │
-│   │  (Next.js)       │    │   (Future)       │    │  (/dashboard)    │          │
-│   └────────┬─────────┘    └────────┬─────────┘    └────────┬─────────┘          │
+│   ┌──────────────────┐    ┌──────────────────┐    ┌────────────────────────┐    │
+│   │  aha-tools PWA   │    │   Mobile App     │    │  Admin Dashboard       │    │
+│   │  (Next.js)       │    │   (Future)       │    │  (Embedded React SPA)  │    │
+│   └────────┬─────────┘    └────────┬─────────┘    └────────┬───────────────┘    │
 └────────────┼──────────────────────┼──────────────────────┼──────────────────────┘
              │ HTTP POST (SSE Streaming Connection)
              │ `POST /api/agents/:agentId/:pipeline`
@@ -306,12 +306,40 @@ src/
 
 ---
 
-## 6. Lộ Trình Chuyển Đổi Khi Cần Mở Rộng Lớn (Evolution Path)
+## 7. High-Level API Contract (Gateway & Dashboard)
 
-Nếu trong tương lai hệ thống đạt lượng người dùng lớn (> 100 học viên thao tác đồng thời), chúng ta chỉ cần thực hiện 2 bước nâng cấp nhẹ nhàng mà **không phải sửa đổi bất kỳ dòng code logic nào của Story Shadowing hay LangGraph**:
+Mặc dù hệ thống đã tích hợp sẵn Swagger UI (`/api/docs`), tài liệu này tóm tắt các endpoint cốt lõi nhất để Client dễ dàng hình dung bức tranh giao tiếp tổng thể.
 
-1. **Thêm `QueueAdapter`**: Thay vì gọi `plugin.execute()` trực tiếp, `AgentsController` sẽ đẩy vào Redis BullMQ Queue.
-2. **Khởi chạy `worker.main.ts` trên Railway**: Đăng ký Worker lắng nghe queue và gọi lại đúng `plugin.execute()` đã viết sẵn!
+### 7.1. Agent Execution (Streaming API)
+
+**`POST /api/agents/:pluginId/:pipeline/stream`**
+- **Chức năng:** Khởi chạy một Agent Pipeline và trả về luồng dữ liệu tiến độ thời gian thực (Server-Sent Events).
+- **Body (Tùy thuộc vào Pipeline):**
+  - Text Pipeline: `{ "text": "...", "voice": "FEMALE" }`
+  - YouTube Pipeline: `{ "youtubeUrl": "https://youtu.be/..." }`
+- **Response:** `text/event-stream`
+  - Bắn liên tục các sự kiện: `init`, `step_start`, `step_complete`, `done`, `error`.
+  - Có kèm tín hiệu `ping` mỗi 15s để chống Timeout.
+
+### 7.2. Dashboard & Observability API
+
+- **`GET /api/v1/dashboard/metrics`**: Lấy số liệu tổng quan (Tổng số lượt chạy, Tokens tiêu thụ, Request thành công/thất bại).
+- **`GET /api/v1/dashboard/logs`**: Truy xuất lịch sử chạy chi tiết của các Agent (Hỗ trợ phân trang). Trả về Timeline, Token usage, Thời gian phản hồi của từng Node.
+- **`GET /api/v1/dashboard/plugins`**: Lấy danh sách toàn bộ Agent Plugins đang đăng ký trong hệ thống, bao gồm Graph, Nodes, Edges.
+- **`GET /api/v1/dashboard/configs/:agentId`**: Lấy cấu hình Prompt và Model hiện tại của một Agent.
+- **`PUT /api/v1/dashboard/configs/:agentId`**: Cập nhật (Ghi đè) linh hoạt System Prompt và Model cấp độ Node (Node-level Override).
+
+---
+
+## 8. Embedded Admin Dashboard (Static Edge)
+
+Thay vì thiết lập một repository độc lập, `aha-mind-agents` tích hợp sẵn một **Vite React SPA** siêu nhẹ nằm trong thư mục `admin-ui`.
+- Khi build, code của React SPA sẽ được biên dịch vào thư mục `public/` của NestJS.
+- Trên môi trường **Vercel**, thư mục `public/` được tự động host thông qua Global Edge CDN của Vercel hoàn toàn miễn phí, mang lại tốc độ truy cập gần như tức thời (0ms latency).
+- Giao diện cung cấp đẩy đủ các công cụ:
+  - Xem số liệu thống kê (Metrics).
+  - Khảo sát execution logs (Timeline chạy của các Nodes).
+  - Dynamic Configurator: Chỉnh sửa trực tiếp System Prompt và Model của từng Agent Node theo thời gian thực (Dark mode, Glassmorphism UI).
 
 ---
 
