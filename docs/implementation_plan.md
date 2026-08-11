@@ -24,7 +24,7 @@ graph TD
     P3 --> P4["Giai đoạn 4: Story Shadowing Agent Plugin\n(Text Pipeline + YouTube Pipeline + LangGraph)"]
     P4 --> P5["Giai đoạn 5: Unified Agent Controller & Real-Time SSE\n(POST /agents/:id/:pipeline + Keep-Alive Heartbeat)"]
     P5 --> P6["✅ Giai đoạn 6: Giám Sát & Dashboard Observability\n(Metrics, Logs, Dynamic Node Configs)"]
-    P6 --> P7["Giai đoạn 7: Embedded Admin Dashboard\n(Vite React SPA, Vercel Static Edge)"]
+    P6 --> P7["✅ Giai đoạn 7: Embedded Admin Dashboard\n(Vite React SPA, React Flow Graph, Vercel Static Edge)"]
 ```
 
 ---
@@ -91,13 +91,15 @@ graph TD
 
 ---
 
-### Giai đoạn 7: Embedded Admin Dashboard (Vite React SPA)
-- [ ] **Task 7.1:** Khởi tạo thư mục `admin-ui` bằng Vite (React + Tailwind) bên trong `aha-mind-agents`. Cấu hình build outDir trỏ ra `public/` của NestJS.
-- [ ] **Task 7.2:** Xây dựng UI Component kết nối với Dashboard API:
-  - Bảng Metrics (thống kê token, tỉ lệ lỗi).
+### Giai đoạn 7: Embedded Admin Dashboard (Vite React SPA) (ĐÃ HOÀN THÀNH)
+- [x] **Task 7.1:** Khởi tạo thư mục `admin-ui` bằng Vite (React + Tailwind) bên trong `aha-mind-agents`. Cấu hình build outDir trỏ ra `public/` của NestJS.
+- [x] **Task 7.2:** Xây dựng UI Component kết nối với Dashboard API:
+  - Bảng Metrics (thống kê token, tỉ lệ lỗi, biểu đồ Recharts).
   - Bảng AgentExecLog (xem chi tiết timeline chạy pipeline).
-- [ ] **Task 7.3:** Giao diện Dynamic Configurator: Cho phép admin chỉnh sửa trực tiếp `System Prompt` và `Model` của các AI Nodes và lưu xuống DB thông qua `PUT /api/v1/dashboard/configs`.
-- [ ] **Task 7.4:** Cấu hình NestJS `ServeStaticModule` để phục vụ thư mục `public/` khi chạy local, tận dụng CDN của Vercel phục vụ Frontend khi Deploy.
+- [x] **Task 7.3:** Giao diện Dynamic Configurator (Split-Pane UI): 
+  - **Trái:** Vẽ Agent Graph động từ metadata pipeline bằng `@xyflow/react` (React Flow).
+  - **Phải:** Cho phép admin chỉnh sửa trực tiếp `System Prompt` (sử dụng `@monaco-editor/react` có line numbers & syntax highlight) và `Model` của các AI Nodes và lưu xuống DB.
+- [x] **Task 7.4:** Cấu hình NestJS `ServeStaticModule` để phục vụ thư mục `public/` khi chạy local, giải quyết xung đột Regex của Express 5.
 
 ---
 

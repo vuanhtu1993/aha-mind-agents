@@ -339,7 +339,10 @@ Thay vì thiết lập một repository độc lập, `aha-mind-agents` tích h�
 - Giao diện cung cấp đẩy đủ các công cụ:
   - Xem số liệu thống kê (Metrics).
   - Khảo sát execution logs (Timeline chạy của các Nodes).
-  - Dynamic Configurator: Chỉnh sửa trực tiếp System Prompt và Model của từng Agent Node theo thời gian thực (Dark mode, Glassmorphism UI).
+  - **Dynamic Configurator (Split-Pane UI):** 
+    - Trực quan hóa luồng dữ liệu (Graph) bằng **React Flow** (`@xyflow/react`).
+    - Chỉnh sửa trực tiếp System Prompt bằng **Monaco Editor** (`@monaco-editor/react` - Lõi của VSCode) với đầy đủ tính năng Syntax Highlighting và Line Numbers.
+    - Cho phép thay đổi Model của từng Agent Node theo thời gian thực.
 
 ---
 
