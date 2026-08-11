@@ -24,9 +24,11 @@ import { join } from 'path';
       isGlobal: true,
       validate: validateEnv,
     }),
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'public'),
-    }),
+    ...(process.env.VERCEL !== '1' ? [
+      ServeStaticModule.forRoot({
+        rootPath: join(process.cwd(), 'public'),
+      })
+    ] : []),
     DatabaseModule,
     CoreModule,
     HealthModule,
