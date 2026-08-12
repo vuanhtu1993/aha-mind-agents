@@ -8,6 +8,7 @@
   "scripts": {
     "build": "nest build",
     "build:ui": "cd admin-ui && pnpm install && pnpm run build && cd .. && cp -R public/. .",
+    "prepare": "git config core.hooksPath .githooks || true",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
