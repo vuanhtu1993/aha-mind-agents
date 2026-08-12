@@ -1,9 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { YoutubeTranscript, TranscriptResponse } from 'youtube-transcript';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class YoutubeToolService {
   private readonly logger = new Logger(YoutubeToolService.name);
+
+  constructor(private readonly configService: ConfigService) { }
 
   /**
    * Trích xuất ID video từ đường dẫn URL của YouTube.
@@ -20,86 +23,109 @@ export class YoutubeToolService {
 
   /**
    * Tải phụ đề (Transcript) của một Video từ YouTube.
+   * Chiến lược ưu tiên:
+   *   1. Gọi Supadata API (qua IP sạch, không bị Vercel block)
+   *   2. Fallback về youtube-transcript (dùng khi Local Dev)
    * @param videoUrlOrId URL hoặc ID của video
    * @returns Danh sách các đoạn phụ đề kèm theo offset và duration
    */
   public async fetchTranscript(videoUrlOrId: string): Promise<TranscriptResponse[]> {
     this.logger.log(`Đang tải phụ đề từ YouTube: ${videoUrlOrId}`);
-    try {
-      // --- Monkey Patch YoutubeTranscript để luôn ưu tiên phụ đề thủ công (Manual English) ---
-      if (!(YoutubeTranscript as any).__patchedForManualSubtitles) {
-        const originalFetchTranscriptFromTracks = (YoutubeTranscript as any).fetchTranscriptFromTracks;
-        (YoutubeTranscript as any).fetchTranscriptFromTracks = async function (captionTracks: any[], vId: string, config: any) {
-          let tracks = captionTracks;
-          if (config?.lang) {
-            tracks = captionTracks.filter((t: any) => t.languageCode === config.lang);
-          }
 
-          if (tracks.length > 0) {
-            // Chỉ lấy track tiếng Anh (en) và thủ công (không phải asr)
-            const bestTrack = tracks.find((t: any) => t.languageCode.startsWith('en') && t.kind !== 'asr');
-
-            if (!bestTrack) {
-              throw new Error('BAD_TRANSCRIPT');
-            }
-            return originalFetchTranscriptFromTracks.call(this, [bestTrack], vId, config);
-          }
-          return originalFetchTranscriptFromTracks.call(this, captionTracks, vId, config);
-        };
-        (YoutubeTranscript as any).__patchedForManualSubtitles = true;
-      }
-
-      // --- Lần thử 1: Fetch tĩnh với Cookie cơ bản ---
-      const fetchWithStaticCookie = (url: any, options?: any) => {
-        return fetch(url, {
-          ...options,
-          headers: {
-            ...options?.headers,
-            'Cookie': 'CONSENT=YES+cb; i18n_redirected=1;',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'User-Agent': options?.headers?.['User-Agent'] || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-          }
-        });
-      };
-
-      let transcript: TranscriptResponse[];
+    // --- Ưu tiên 1: Supadata API (Giải pháp cho Vercel) ---
+    const supadataApiKey = this.configService.get<string>('SUPADATA_API_KEY');
+    if (supadataApiKey) {
       try {
-        transcript = await YoutubeTranscript.fetchTranscript(videoUrlOrId, { fetch: fetchWithStaticCookie as any });
+        const transcript = await this.fetchTranscriptFromSupadata(videoUrlOrId, supadataApiKey);
+        this.logger.log(`✅ [Supadata] Tải thành công ${transcript.length} đoạn phụ đề.`);
+        return transcript;
       } catch (err: any) {
-        if (err.message === 'BAD_TRANSCRIPT') throw err;
-
-        this.logger.warn(`Lần 1 thất bại, thử tự động chập cookies động từ m.youtube.com...`);
-        // --- Lần thử 2: Tự động chập cookies (Dynamic Cookies) qua bản Mobile ---
-        const pageRes = await fetch(`https://m.youtube.com/watch?v=${videoUrlOrId}`, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
-          }
-        });
-        const setCookieHeaders = pageRes.headers.get('set-cookie') || '';
-        let dynamicCookies = setCookieHeaders.split(',').map(c => c.split(';')[0]).join('; ');
-        if (!dynamicCookies.includes('CONSENT=')) {
-          dynamicCookies += '; CONSENT=YES+cb;';
+        // Nếu lỗi liên quan đến nội dung video (không có CC), ném lỗi ngay
+        if (err.message === 'BAD_TRANSCRIPT' || err.message === 'NO_TRANSCRIPT') {
+          this.logger.error(`❌ [Supadata] ${err.message}`);
+          throw err;
         }
-
-        const fetchWithDynamicCookie = (url: any, options?: any) => {
-          return fetch(url, {
-            ...options,
-            headers: {
-              ...options?.headers,
-              'Cookie': dynamicCookies,
-              'Accept-Language': 'en-US,en;q=0.9',
-              'User-Agent': options?.headers?.['User-Agent'] || 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
-            }
-          });
-        };
-
-        transcript = await YoutubeTranscript.fetchTranscript(videoUrlOrId, { fetch: fetchWithDynamicCookie as any });
+        // Nếu lỗi về network/API → fallback về thư viện cũ
+        this.logger.warn(`⚠️ [Supadata] Thất bại: ${err.message}. Fallback về youtube-transcript...`);
       }
+    }
 
-      this.logger.log(`✅ Tải thành công ${transcript.length} đoạn phụ đề.`);
+    // --- Ưu tiên 2: Fallback về youtube-transcript (cho Local Dev) ---
+    return this.fetchTranscriptLocal(videoUrlOrId);
+  }
+
+  /**
+   * Lấy phụ đề qua Supadata API - không bị chặn bởi Vercel/Datacenter IP.
+   * Supadata cung cấp IP sạch và chứng thực (authentication) riêng.
+   */
+  private async fetchTranscriptFromSupadata(videoUrlOrId: string, apiKey: string): Promise<TranscriptResponse[]> {
+    // Supadata chấp nhận cả URL lẫn videoId
+    const params = new URLSearchParams({ videoId: videoUrlOrId, lang: 'en' });
+    const res = await fetch(`https://api.supadata.ai/v1/youtube/transcript?${params}`, {
+      headers: { 'x-api-key': apiKey },
+    });
+
+    if (res.status === 404) {
+      throw new Error('NO_TRANSCRIPT');
+    }
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      throw new Error(`Supadata API lỗi ${res.status}: ${errorText}`);
+    }
+
+    const data: { content?: Array<{ text: string; offset: number; duration: number; lang: string }> } = await res.json();
+
+    if (!data.content || data.content.length === 0) {
+      throw new Error('NO_TRANSCRIPT');
+    }
+
+    // Chỉ lấy phụ đề tiếng Anh thủ công (Supadata có thể trả về nhiều ngôn ngữ)
+    const enContent = data.content.filter(s => s.lang?.startsWith('en'));
+    if (enContent.length === 0) {
+      throw new Error('BAD_TRANSCRIPT');
+    }
+
+    // Chuyển đổi về đúng format TranscriptResponse của thư viện youtube-transcript
+    return enContent.map(s => ({
+      text: s.text,
+      offset: Math.round(s.offset),
+      duration: Math.round(s.duration),
+      lang: s.lang,
+    }));
+  }
+
+  /**
+   * Fallback: Lấy phụ đề bằng thư viện youtube-transcript (hoạt động tốt ở Local).
+   * Áp dụng Monkey Patch để ưu tiên phụ đề thủ công (Manual CC) tiếng Anh.
+   */
+  private async fetchTranscriptLocal(videoUrlOrId: string): Promise<TranscriptResponse[]> {
+    // --- Monkey Patch để ưu tiên phụ đề thủ công (Manual English) ---
+    if (!(YoutubeTranscript as any).__patchedForManualSubtitles) {
+      const originalFetchTranscriptFromTracks = (YoutubeTranscript as any).fetchTranscriptFromTracks;
+      (YoutubeTranscript as any).fetchTranscriptFromTracks = async function (captionTracks: any[], vId: string, config: any) {
+        let tracks = captionTracks;
+        if (config?.lang) {
+          tracks = captionTracks.filter((t: any) => t.languageCode === config.lang);
+        }
+        if (tracks.length > 0) {
+          const bestTrack = tracks.find((t: any) => t.languageCode.startsWith('en') && t.kind !== 'asr');
+          if (!bestTrack) {
+            throw new Error('BAD_TRANSCRIPT');
+          }
+          return originalFetchTranscriptFromTracks.call(this, [bestTrack], vId, config);
+        }
+        return originalFetchTranscriptFromTracks.call(this, captionTracks, vId, config);
+      };
+      (YoutubeTranscript as any).__patchedForManualSubtitles = true;
+    }
+
+    try {
+      const transcript = await YoutubeTranscript.fetchTranscript(videoUrlOrId);
+      this.logger.log(`✅ [Local] Tải thành công ${transcript.length} đoạn phụ đề.`);
       return transcript;
     } catch (error: any) {
-      this.logger.error(`❌ Lỗi tải phụ đề YouTube: ${error.message}`);
+      this.logger.error(`❌ [Local] Lỗi: ${error.message}`);
       if (error.message === 'BAD_TRANSCRIPT') {
         throw new Error('Video này không có phụ đề tiếng Anh thủ công (Manual CC). Phụ đề tự động (Auto-generated) thường sai lệch thời gian rất lớn. Vui lòng chọn video khác!');
       }
