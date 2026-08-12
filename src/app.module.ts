@@ -19,6 +19,8 @@ import { DashboardModule } from './api/dashboard/dashboard.module';
  * - validate: validateEnv -> Kiểm tra hợp lệ bằng Zod ngay khi app khởi động.
  */
 
+// Local dev: NestJS tự serve frontend qua ServeStaticModule.
+// Vercel: Edge CDN tự serve file tĩnh, không cần NestJS.
 const getPublicPath = () => join(__dirname, '..', 'public');
 
 @Module({
@@ -27,9 +29,9 @@ const getPublicPath = () => join(__dirname, '..', 'public');
       isGlobal: true,
       validate: validateEnv,
     }),
-    ServeStaticModule.forRoot({
-      rootPath: getPublicPath(),
-    }),
+    ...(process.env.VERCEL !== '1'
+      ? [ServeStaticModule.forRoot({ rootPath: getPublicPath() })]
+      : []),
     DatabaseModule,
     CoreModule,
     HealthModule,
