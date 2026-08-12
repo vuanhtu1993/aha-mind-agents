@@ -1,5 +1,7 @@
+import { join } from 'path';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { validateEnv } from './common/config/env.validation';
 import { HealthModule } from './api/health/health.module';
 import { DatabaseModule } from './infra/database/database.module';
@@ -8,8 +10,6 @@ import { StoryShadowingModule } from './plugins/story-shadowing/story-shadowing.
 import { AgentsModule } from './api/agents/agents.module';
 import { DashboardModule } from './api/dashboard/dashboard.module';
 
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
 
 /**
  * AppModule là Root Module trung tâm kết nối toàn bộ các thành phần của Gateway.
@@ -18,12 +18,23 @@ import { join } from 'path';
  * - isGlobal: true -> Biến môi trường có thể inject ở bất cứ service/module nào.
  * - validate: validateEnv -> Kiểm tra hợp lệ bằng Zod ngay khi app khởi động.
  */
+
+// Sử dụng kỹ thuật ngắt chuỗi để bypass Vercel's Node File Tracer (nft)
+// Nếu để nguyên 'public', Vercel sẽ tự động bundle toàn bộ Frontend SPA vào Serverless Function
+// và tự động transpile ESM -> CommonJS gây ra lỗi FUNCTION_INVOCATION_FAILED.
+const getPublicPath = () => join(process.cwd(), ['p', 'u', 'b', 'l', 'i', 'c'].join(''));
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
     }),
+    ...(process.env.VERCEL !== '1' ? [
+      ServeStaticModule.forRoot({
+        rootPath: getPublicPath(),
+      })
+    ] : []),
     DatabaseModule,
     CoreModule,
     HealthModule,

@@ -3,7 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import express, { Express, Request, Response } from 'express';
+import * as express from 'express';
+import { Express, Request, Response } from 'express';
 import { AppModule } from '../src/app.module';
 
 const server: Express = express();
