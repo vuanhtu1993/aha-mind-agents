@@ -49,19 +49,49 @@ export class YoutubeToolService {
         (YoutubeTranscript as any).__patchedForManualSubtitles = true;
       }
 
-      // --- Custom Fetcher với Cookie để bypass Youtube Consent Screen trên Vercel ---
-      const customFetch = (url: any, options?: any) => {
+      // --- Lần thử 1: Fetch tĩnh với Cookie cơ bản ---
+      const fetchWithStaticCookie = (url: any, options?: any) => {
         return fetch(url, {
           ...options,
           headers: {
             ...options?.headers,
             'Cookie': 'CONSENT=YES+cb; i18n_redirected=1;',
             'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
           }
         });
       };
 
-      const transcript = await YoutubeTranscript.fetchTranscript(videoUrlOrId, { fetch: customFetch as any });
+      let transcript: TranscriptResponse[];
+      try {
+        transcript = await YoutubeTranscript.fetchTranscript(videoUrlOrId, { fetch: fetchWithStaticCookie as any });
+      } catch (err: any) {
+        if (err.message === 'BAD_TRANSCRIPT') throw err;
+
+        this.logger.warn(`Lần 1 thất bại, thử tự động chập cookies động...`);
+        // --- Lần thử 2: Tự động chập cookies (Dynamic Cookies) ---
+        const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoUrlOrId}`);
+        const setCookieHeaders = pageRes.headers.get('set-cookie') || '';
+        let dynamicCookies = setCookieHeaders.split(',').map(c => c.split(';')[0]).join('; ');
+        if (!dynamicCookies.includes('CONSENT=')) {
+          dynamicCookies += '; CONSENT=YES+cb;';
+        }
+
+        const fetchWithDynamicCookie = (url: any, options?: any) => {
+          return fetch(url, {
+            ...options,
+            headers: {
+              ...options?.headers,
+              'Cookie': dynamicCookies,
+              'Accept-Language': 'en-US,en;q=0.9',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+            }
+          });
+        };
+        
+        transcript = await YoutubeTranscript.fetchTranscript(videoUrlOrId, { fetch: fetchWithDynamicCookie as any });
+      }
+
       this.logger.log(`✅ Tải thành công ${transcript.length} đoạn phụ đề.`);
       return transcript;
     } catch (error: any) {
