@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "cd admin-ui && pnpm install && pnpm run build && cd .. && cp -R public/. .",
   "routes": [
     {
       "src": "/api/(.*)",
