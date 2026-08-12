@@ -6,19 +6,7 @@
       "use": "@vercel/node"
     },
     {
-      "src": "index.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "assets/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "favicon.svg",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "icons.svg",
+      "src": "admin-ui/dist/**",
       "use": "@vercel/static"
     }
   ],
@@ -28,11 +16,16 @@
       "dest": "/api/index.ts"
     },
     {
-      "handle": "filesystem"
+      "src": "/assets/(.*)",
+      "dest": "/admin-ui/dist/assets/$1"
+    },
+    {
+      "src": "/(.*\\.svg)",
+      "dest": "/admin-ui/dist/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/admin-ui/dist/index.html"
     }
   ]
 }
