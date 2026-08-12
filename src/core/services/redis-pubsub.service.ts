@@ -22,15 +22,15 @@ export class RedisPubSubService implements OnModuleInit, OnModuleDestroy {
   // Luồng sự kiện nội bộ để các Controller có thể subscribe (RxJS)
   public readonly events$ = new Subject<JobEventPayload>();
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   onModuleInit() {
-    const redisUri = this.configService.get<string>('REDIS_URI') || 
-                     this.configService.get<string>('REDIS_URL') || 
-                     process.env.REDIS_URI || 
-                     process.env.REDIS_URL || 
-                     'redis://localhost:6379';
-    
+    const redisUri = this.configService.get<string>('REDIS_URI') ||
+      this.configService.get<string>('REDIS_URL') ||
+      process.env.REDIS_URI ||
+      process.env.REDIS_URL ||
+      'redis://localhost:6379';
+
     this.logger.log(`Khởi tạo Redis Pub/Sub kết nối tới: ${redisUri}`);
 
     // Khởi tạo Publisher Client
@@ -49,9 +49,9 @@ export class RedisPubSubService implements OnModuleInit, OnModuleDestroy {
 
     this.pubClient.on('error', (err) => this.logger.error(`Publisher Client Error: ${err.message}`));
     this.subClient.on('error', (err) => this.logger.error(`Subscriber Client Error: ${err.message}`));
-    
+
     this.pubClient.on('connect', () => this.logger.log('✅ Publisher Client Connected.'));
-    
+
     this.subClient.on('connect', () => {
       this.logger.log('✅ Subscriber Client Connected.');
     });
@@ -85,7 +85,7 @@ export class RedisPubSubService implements OnModuleInit, OnModuleDestroy {
    */
   async publishEvent(payload: JobEventPayload) {
     if (this.pubClient.status !== 'ready') return;
-    
+
     try {
       await this.pubClient.publish(this.channel, JSON.stringify(payload));
     } catch (error: any) {
