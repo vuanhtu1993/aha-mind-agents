@@ -19,10 +19,9 @@ import { DashboardModule } from './api/dashboard/dashboard.module';
  * - validate: validateEnv -> Kiểm tra hợp lệ bằng Zod ngay khi app khởi động.
  */
 
-// Sử dụng kỹ thuật ngắt chuỗi để bypass Vercel's Node File Tracer (nft)
-// Nếu để nguyên 'public', Vercel sẽ tự động bundle toàn bộ Frontend SPA vào Serverless Function
-// và tự động transpile ESM -> CommonJS gây ra lỗi FUNCTION_INVOCATION_FAILED.
-const getPublicPath = () => join(process.cwd(), ['p', 'u', 'b', 'l', 'i', 'c'].join(''));
+// Đã khắc phục lỗi ESM (do thư viện uuid gây ra).
+// Giờ đây có thể phục vụ Frontend SPA bình thường thông qua NestJS.
+const getPublicPath = () => join(process.cwd(), 'public');
 
 @Module({
   imports: [
@@ -30,11 +29,9 @@ const getPublicPath = () => join(process.cwd(), ['p', 'u', 'b', 'l', 'i', 'c'].j
       isGlobal: true,
       validate: validateEnv,
     }),
-    ...(process.env.VERCEL !== '1' ? [
-      ServeStaticModule.forRoot({
-        rootPath: getPublicPath(),
-      })
-    ] : []),
+    ServeStaticModule.forRoot({
+      rootPath: getPublicPath(),
+    }),
     DatabaseModule,
     CoreModule,
     HealthModule,
