@@ -18,10 +18,7 @@ import { DashboardModule } from './api/dashboard/dashboard.module';
  * - isGlobal: true -> Biến môi trường có thể inject ở bất cứ service/module nào.
  * - validate: validateEnv -> Kiểm tra hợp lệ bằng Zod ngay khi app khởi động.
  */
-
-// Local dev: NestJS tự serve frontend qua ServeStaticModule.
-// Vercel: Edge CDN tự serve file tĩnh, không cần NestJS.
-const getPublicPath = () => join(__dirname, '..', 'public');
+const getPublicPath = () => join(process.cwd(), 'public');
 
 @Module({
   imports: [
@@ -40,4 +37,4 @@ const getPublicPath = () => join(__dirname, '..', 'public');
     DashboardModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
