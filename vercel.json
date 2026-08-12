@@ -6,7 +6,19 @@
       "use": "@vercel/node"
     },
     {
-      "src": "public/**",
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "assets/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "favicon.svg",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "icons.svg",
       "use": "@vercel/static"
     }
   ],
@@ -20,7 +32,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/public/index.html"
+      "dest": "/index.html"
     }
   ]
 }
