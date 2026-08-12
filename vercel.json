@@ -1,10 +1,6 @@
 {
   "version": 2,
-  "functions": {
-    "api/index.ts": {
-      "includeFiles": "public/**"
-    }
-  },
+  "outputDirectory": "public",
   "rewrites": [
     {
       "source": "/api/(.*)",
