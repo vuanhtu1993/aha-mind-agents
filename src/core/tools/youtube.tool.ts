@@ -38,7 +38,7 @@ export class YoutubeToolService {
           if (tracks.length > 0) {
             // Chỉ lấy track tiếng Anh (en) và thủ công (không phải asr)
             const bestTrack = tracks.find((t: any) => t.languageCode.startsWith('en') && t.kind !== 'asr');
-            
+
             if (!bestTrack) {
               throw new Error('BAD_TRANSCRIPT');
             }
@@ -57,7 +57,7 @@ export class YoutubeToolService {
             ...options?.headers,
             'Cookie': 'CONSENT=YES+cb; i18n_redirected=1;',
             'Accept-Language': 'en-US,en;q=0.9',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+            'User-Agent': options?.headers?.['User-Agent'] || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
           }
         });
       };
@@ -68,9 +68,13 @@ export class YoutubeToolService {
       } catch (err: any) {
         if (err.message === 'BAD_TRANSCRIPT') throw err;
 
-        this.logger.warn(`Lần 1 thất bại, thử tự động chập cookies động...`);
-        // --- Lần thử 2: Tự động chập cookies (Dynamic Cookies) ---
-        const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoUrlOrId}`);
+        this.logger.warn(`Lần 1 thất bại, thử tự động chập cookies động từ m.youtube.com...`);
+        // --- Lần thử 2: Tự động chập cookies (Dynamic Cookies) qua bản Mobile ---
+        const pageRes = await fetch(`https://m.youtube.com/watch?v=${videoUrlOrId}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
+          }
+        });
         const setCookieHeaders = pageRes.headers.get('set-cookie') || '';
         let dynamicCookies = setCookieHeaders.split(',').map(c => c.split(';')[0]).join('; ');
         if (!dynamicCookies.includes('CONSENT=')) {
@@ -84,11 +88,11 @@ export class YoutubeToolService {
               ...options?.headers,
               'Cookie': dynamicCookies,
               'Accept-Language': 'en-US,en;q=0.9',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+              'User-Agent': options?.headers?.['User-Agent'] || 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
             }
           });
         };
-        
+
         transcript = await YoutubeTranscript.fetchTranscript(videoUrlOrId, { fetch: fetchWithDynamicCookie as any });
       }
 
