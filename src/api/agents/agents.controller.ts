@@ -2,7 +2,7 @@ import { Controller, Get, Post, Param, Body, Res, Req, HttpException, HttpStatus
 import { Response, Request } from 'express';
 import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { PluginRegistryService } from '../../core/services/plugin-registry.service';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AHA_MIND_CONNECTION } from '../../infra/database/database.constants';
@@ -88,7 +88,7 @@ export class AgentsController {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    const jobId = uuidv4();
+    const jobId = randomUUID();
     this.logger.log(`Bắt đầu chạy Job [${jobId}] cho Plugin: ${pluginId} | Pipeline: ${pipeline}`);
 
     // Hàm tiện ích ghi chunk SSE
