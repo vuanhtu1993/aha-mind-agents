@@ -33,7 +33,7 @@ export class YoutubeToolService {
     this.logger.log(`Đang tải phụ đề từ YouTube: ${videoUrlOrId}`);
 
     // --- Ưu tiên 1: Supadata API (Giải pháp cho Vercel) ---
-    const supadataApiKey = this.configService.get<string>('SUPADATA_API_KEY');
+    const supadataApiKey = this.configService.get<string>('SUPADATA_API_KEY') || process.env.SUPADATA_API_KEY;
     if (supadataApiKey) {
       try {
         const transcript = await this.fetchTranscriptFromSupadata(videoUrlOrId, supadataApiKey);

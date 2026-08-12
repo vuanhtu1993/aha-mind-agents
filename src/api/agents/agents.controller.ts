@@ -35,14 +35,12 @@ export class AgentsController {
   @Post(':pluginId/:pipeline/stream')
   @ApiOperation({ summary: 'Khởi chạy một Agent Pipeline và nhận luồng dữ liệu SSE' })
   @ApiParam({ name: 'pluginId', example: 'story-shadowing', description: 'Tên của Plugin' })
-  @ApiParam({ name: 'pipeline', example: 'text', description: 'Loại pipeline cần thực thi (vd: text, youtube)' })
+  @ApiParam({ name: 'pipeline', example: 'youtube', description: 'Loại pipeline cần thực thi (vd: text, youtube)' })
   @ApiBody({
     description: 'Dữ liệu đầu vào phụ thuộc vào pipeline. \n- Với text: { "text": "Đoạn văn...", "voice": "FEMALE" } \n- Với youtube: { "youtubeUrl": "https..." }',
     schema: {
       type: 'object',
       properties: {
-        text: { type: 'string', example: 'Once upon a time...' },
-        voice: { type: 'string', example: 'FEMALE' },
         youtubeUrl: { type: 'string', example: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }
       }
     }
@@ -124,7 +122,7 @@ export class AgentsController {
     const subscription = stream$.subscribe({
       next: (event) => {
         writeSseEvent(event);
-        
+
         // Bắt sự kiện timeline của các Node
         if (event.status === 'completed' || event.status === 'failed') {
           const now = Date.now();
@@ -148,14 +146,14 @@ export class AgentsController {
         finalStatus = 'failed';
         finalError = err.message;
         writeSseEvent({ status: 'failed', message: `Lỗi hệ thống: ${err.message}` });
-        
+
         await this.saveAgentLog(jobId, pluginId, pipeline, startTime, finalStatus, timeline, finalTokenUsage, finalError);
         res.end();
       },
       complete: async () => {
         this.logger.log(`Job [${jobId}] Hoàn tất.`);
         if (finalStatus !== 'failed') finalStatus = 'completed';
-        
+
         await this.saveAgentLog(jobId, pluginId, pipeline, startTime, finalStatus, timeline, finalTokenUsage, finalError);
         res.end();
       },
@@ -174,13 +172,13 @@ export class AgentsController {
    * Lưu log thực thi xuống DB (MongoDB - aha_mind)
    */
   private async saveAgentLog(
-    jobId: string, 
-    agentId: string, 
-    pipeline: string, 
-    startTime: number, 
-    status: string, 
-    timeline: any[], 
-    tokenUsage: any, 
+    jobId: string,
+    agentId: string,
+    pipeline: string,
+    startTime: number,
+    status: string,
+    timeline: any[],
+    tokenUsage: any,
     error?: any
   ) {
     try {
