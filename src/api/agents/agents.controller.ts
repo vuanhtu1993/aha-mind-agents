@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Param, Body, Res, Req, HttpException, HttpStatus, Logger, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Res, Req, HttpException, HttpStatus, Logger, Inject, HttpCode } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { PluginRegistryService } from '../../core/services/plugin-registry.service';
+import { RedisPubSubService } from '../../core/services/redis-pubsub.service';
 import { randomUUID } from 'crypto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -18,6 +19,7 @@ export class AgentsController {
     private readonly pluginRegistry: PluginRegistryService,
     @InjectModel(AgentExecLog.name, AHA_MIND_CONNECTION) private readonly agentExecLogModel: Model<AgentExecLog>,
     @InjectModel(AgentConfig.name, AHA_MIND_CONNECTION) private readonly agentConfigModel: Model<AgentConfig>,
+    private readonly redisPubSub: RedisPubSubService,
   ) { }
 
   /**
@@ -46,6 +48,7 @@ export class AgentsController {
     }
   })
   @ApiResponse({ status: 200, description: 'SSE Stream Connection Opened.' })
+  @HttpCode(200)
   async executeAgentStream(
     @Param('pluginId') pluginId: string,
     @Param('pipeline') pipeline: string,
@@ -89,6 +92,15 @@ export class AgentsController {
     const jobId = randomUUID();
     this.logger.log(`Bắt đầu chạy Job [${jobId}] cho Plugin: ${pluginId} | Pipeline: ${pipeline}`);
 
+    // Bắn sự kiện JOB_STARTED cho Dashboard
+    this.redisPubSub.publishEvent({
+      type: 'JOB_STARTED',
+      jobId,
+      pluginId,
+      pipeline,
+      timestamp: Date.now(),
+    });
+
     // Hàm tiện ích ghi chunk SSE
     const writeSseEvent = (data: any) => {
       res.write(`data: ${JSON.stringify(data)}\n\n`);
@@ -123,6 +135,15 @@ export class AgentsController {
       next: (event) => {
         writeSseEvent(event);
 
+        // Bắn sự kiện JOB_STEP cho Dashboard
+        this.redisPubSub.publishEvent({
+          type: 'JOB_STEP',
+          jobId,
+          pluginId,
+          timestamp: Date.now(),
+          data: event,
+        });
+
         // Bắt sự kiện timeline của các Node
         if (event.status === 'completed' || event.status === 'failed') {
           const now = Date.now();
@@ -147,12 +168,28 @@ export class AgentsController {
         finalError = err.message;
         writeSseEvent({ status: 'failed', message: `Lỗi hệ thống: ${err.message}` });
 
+        this.redisPubSub.publishEvent({
+          type: 'JOB_FAILED',
+          jobId,
+          pluginId,
+          timestamp: Date.now(),
+          data: { error: finalError },
+        });
+
         await this.saveAgentLog(jobId, pluginId, pipeline, startTime, finalStatus, timeline, finalTokenUsage, finalError);
         res.end();
       },
       complete: async () => {
         this.logger.log(`Job [${jobId}] Hoàn tất.`);
         if (finalStatus !== 'failed') finalStatus = 'completed';
+
+        this.redisPubSub.publishEvent({
+          type: 'JOB_COMPLETED',
+          jobId,
+          pluginId,
+          timestamp: Date.now(),
+          data: { status: finalStatus, tokenUsage: finalTokenUsage },
+        });
 
         await this.saveAgentLog(jobId, pluginId, pipeline, startTime, finalStatus, timeline, finalTokenUsage, finalError);
         res.end();

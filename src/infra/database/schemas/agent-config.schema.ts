@@ -6,7 +6,7 @@ export class AgentConfig extends Document {
   @Prop({ required: true, unique: true })
   agentId: string; // e.g. 'story-shadowing', 'opta'
 
-  @Prop({ required: true, default: 'gemini-2.5-flash' })
+  @Prop({ required: true, default: 'gemini-3.5-flash' })
   defaultModel: string;
 
   @Prop({ type: Object, default: {} })

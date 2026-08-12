@@ -1,11 +1,27 @@
-import { Controller, Get, Put, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Put, Param, Body, Query, Sse, MessageEvent } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
+import { RedisPubSubService } from '../../core/services/redis-pubsub.service';
+import { Observable, map } from 'rxjs';
 
 @ApiTags('Dashboard (Admin)')
 @Controller('v1/dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) { }
+  constructor(
+    private readonly dashboardService: DashboardService,
+    private readonly redisPubSub: RedisPubSubService
+  ) { }
+
+  @Sse('events')
+  @ApiOperation({ summary: 'SSE Stream cho Dashboard (Real-time)', description: 'Lắng nghe các sự kiện job qua Redis Pub/Sub' })
+  events(): Observable<MessageEvent> {
+    return this.redisPubSub.events$.pipe(
+      map((payload) => ({
+        data: payload,
+        type: payload.type,
+      } as MessageEvent))
+    );
+  }
 
   @Get('metrics')
   @ApiOperation({ summary: 'Lấy thống kê hệ thống (Metrics)', description: 'Trả về tổng lượt chạy, tỉ lệ lỗi, và token usage trung bình' })
@@ -44,7 +60,7 @@ export class DashboardController {
     schema: {
       type: 'object',
       properties: {
-        defaultModel: { type: 'string', example: 'gemini-2.5-flash' },
+        defaultModel: { type: 'string', example: 'gemini-3.5-flash' },
         systemPromptOverride: { type: 'string', example: 'Bạn là một chuyên gia...' },
         temperature: { type: 'number', example: 0.1 },
         isActive: { type: 'boolean', example: true }

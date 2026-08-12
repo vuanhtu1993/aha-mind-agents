@@ -19,7 +19,7 @@ export const EnvSchema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
 
   // Google Gemini AI Configuration
-  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
 
   // Google Cloud TTS Key (Cho giọng đọc và ngữ âm IPA)
   GOOGLE_CLOUD_TTS_KEY: z.string().optional(),

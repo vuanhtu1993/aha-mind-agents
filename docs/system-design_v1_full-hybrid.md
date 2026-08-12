@@ -528,7 +528,7 @@ MongoDB Atlas Cluster (shared)
   _id: ObjectId,
   agentId: string,                      // Unique index
   displayName: string,
-  model: string,                        // 'gemini-2.5-flash' | 'gemini-2.5-pro'
+  model: string,                        // 'gemini-3.5-flash' | 'gemini-2.5-pro'
   systemPrompt: string,                 // Dynamic system prompt cho agent
   temperature: number,                  // 0.0 - 1.0
   maxRetries: number,                   // Default: 3

@@ -10,7 +10,7 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 @Injectable()
 export class GeminiRotatorService implements OnModuleInit {
   private readonly logger = new Logger(GeminiRotatorService.name);
-  
+
   private apiKeys: string[] = [];
   private currentKeyIndex: number = 0;
 
@@ -18,7 +18,7 @@ export class GeminiRotatorService implements OnModuleInit {
   private cooldownMap: Record<string, number> = {};
   private readonly COOLDOWN_DURATION_MS = 5 * 60 * 1000; // 5 phút
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   onModuleInit() {
     this.initKeys();
@@ -30,7 +30,7 @@ export class GeminiRotatorService implements OnModuleInit {
    */
   private initKeys() {
     const keys: string[] = [];
-    
+
     // Đọc tất cả các biến môi trường
     for (const [key, value] of Object.entries(process.env)) {
       if (key.startsWith('GOOGLE_API_KEY') && value) {
@@ -57,10 +57,10 @@ export class GeminiRotatorService implements OnModuleInit {
    */
   public getModelWithOptions(options?: { temperature?: number, searchGrounding?: boolean, model?: string }): ChatGoogleGenerativeAI {
     const activeKey = this.getActiveKey();
-    
+
     const config: any = {
       apiKey: activeKey,
-      model: options?.model || this.configService.get<string>('GEMINI_MODEL', 'gemini-2.5-flash'),
+      model: options?.model || this.configService.get<string>('GEMINI_MODEL', 'gemini-3.5-flash'),
       temperature: options?.temperature ?? 0.1,
       maxRetries: 2,
     };
@@ -88,8 +88,8 @@ export class GeminiRotatorService implements OnModuleInit {
       if (!cooldownUntil || Date.now() > cooldownUntil) {
         // Key này an toàn
         if (cooldownUntil) {
-           this.logger.log(`🔓 Key thứ ${this.currentKeyIndex + 1} đã hết thời gian Cooldown. Đưa vào sử dụng lại.`);
-           delete this.cooldownMap[key];
+          this.logger.log(`🔓 Key thứ ${this.currentKeyIndex + 1} đã hết thời gian Cooldown. Đưa vào sử dụng lại.`);
+          delete this.cooldownMap[key];
         }
         return key;
       }
@@ -165,10 +165,10 @@ export class GeminiRotatorService implements OnModuleInit {
       const model = this.getModelWithOptions(options);
       const structuredOptions = options?.name ? { name: options.name, includeRaw: true } : { includeRaw: true };
       const structuredLlm = model.withStructuredOutput(schema, structuredOptions as any);
-      
+
       const response = await structuredLlm.invoke(prompt);
       const rawMessage = response.raw;
-      
+
       return {
         parsed: response.parsed,
         usage: {

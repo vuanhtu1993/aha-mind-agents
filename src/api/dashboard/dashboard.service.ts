@@ -19,13 +19,13 @@ export class DashboardService implements OnModuleInit {
   async onModuleInit() {
     this.logger.log('Đang đồng bộ Metadata của các Plugin xuống AgentConfig...');
     const plugins = this.pluginRegistry['plugins'];
-    
+
     for (const [agentId, plugin] of plugins.entries()) {
       const metadata = plugin.metadata;
-      
+
       // Tạo một object chứa toàn bộ defaultConfig của các nodes
       const defaultNodeOverrides: Record<string, any> = {};
-      
+
       if (metadata.pipelines && Array.isArray(metadata.pipelines)) {
         metadata.pipelines.forEach((pipeline: any) => {
           if (pipeline.nodes && Array.isArray(pipeline.nodes)) {
@@ -42,10 +42,10 @@ export class DashboardService implements OnModuleInit {
       // để không ghi đè lên các cấu hình mà Admin đã sửa trên Dashboard.
       await this.configModel.findOneAndUpdate(
         { agentId },
-        { 
+        {
           $setOnInsert: {
             agentId,
-            defaultModel: 'gemini-2.5-flash',
+            defaultModel: 'gemini-3.5-flash',
             temperature: 0.1,
             maxRetries: 2,
             isActive: true,
@@ -55,7 +55,7 @@ export class DashboardService implements OnModuleInit {
         { upsert: true }
       );
     }
-    
+
     this.logger.log('Đồng bộ Metadata hoàn tất.');
   }
 
@@ -126,7 +126,7 @@ export class DashboardService implements OnModuleInit {
       // Default config nếu chưa có
       return {
         agentId,
-        defaultModel: 'gemini-2.5-flash',
+        defaultModel: 'gemini-3.5-flash',
         temperature: 0.1,
         maxRetries: 2,
         isActive: true

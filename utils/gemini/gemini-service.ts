@@ -4,7 +4,7 @@ import { geminiRateLimiter } from "./rate-limiter";
 export class GeminiService {
   private static instance: GeminiService;
   private llm!: ChatGoogleGenerativeAI;
-  
+
   private apiKeys: string[] = [];
   private currentKeyIndex: number = 0;
 
@@ -20,7 +20,7 @@ export class GeminiService {
 
   private initKeys() {
     const keys: string[] = [];
-    
+
     // Quét toàn bộ biến môi trường, lấy những biến bắt đầu bằng GOOGLE_API_KEY
     for (const [key, value] of Object.entries(process.env)) {
       if (key.startsWith("GOOGLE_API_KEY") && value) {
@@ -43,7 +43,7 @@ export class GeminiService {
     const currentKey = this.apiKeys[this.currentKeyIndex] || "";
     this.llm = new ChatGoogleGenerativeAI({
       apiKey: currentKey,
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.5-flash",
       temperature: 0.1, // Default temperature, can be customized locally if needed
       maxRetries: 2,
     });
@@ -75,7 +75,7 @@ export class GeminiService {
    * Helper function bọc execution block trong vòng lặp retry API Key.
    */
   private async executeWithRotation<T>(
-    estimatedTokens: number, 
+    estimatedTokens: number,
     operation: () => Promise<T>
   ): Promise<T> {
     while (true) {
@@ -86,11 +86,11 @@ export class GeminiService {
       } catch (error: any) {
         const errMsg = error?.message?.toLowerCase() || '';
         if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('exhausted') || errMsg.includes('503')) {
-           console.warn(`[GeminiService] ⚠️ Lỗi Quota/429/503 ở API Key thứ ${this.currentKeyIndex + 1}. Đang thử Rotate Key...`);
-           const hasNextKey = this.rotateKey();
-           if (hasNextKey) {
-             continue; // Thử lại vòng lặp với Key mới
-           }
+          console.warn(`[GeminiService] ⚠️ Lỗi Quota/429/503 ở API Key thứ ${this.currentKeyIndex + 1}. Đang thử Rotate Key...`);
+          const hasNextKey = this.rotateKey();
+          if (hasNextKey) {
+            continue; // Thử lại vòng lặp với Key mới
+          }
         }
         throw error; // Quăng lỗi ra nếu không phải lỗi quota hoặc hết key
       }
@@ -107,7 +107,7 @@ export class GeminiService {
     }
     const config: any = {
       apiKey: this.apiKeys[this.currentKeyIndex] || "",
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.5-flash",
       temperature: options.temperature !== undefined ? options.temperature : 0.1,
       maxRetries: 2,
     };
@@ -135,10 +135,10 @@ export class GeminiService {
    * Gọi LLM trả về Structured Output (JSON).
    */
   public async invokeStructured(schema: any, prompt: string | any[], options?: { temperature?: number, name?: string }): Promise<any> {
-    const promptText = typeof prompt === "string" 
-      ? prompt 
+    const promptText = typeof prompt === "string"
+      ? prompt
       : prompt.map(m => m.content?.toString() || "").join("\\n");
-      
+
     const estimatedTokens = Math.ceil(promptText.length / 4);
 
     return await this.executeWithRotation(estimatedTokens, async () => {
