@@ -100,6 +100,7 @@ graph TD
   - **Trái:** Vẽ Agent Graph động từ metadata pipeline bằng `@xyflow/react` (React Flow).
   - **Phải:** Cho phép admin chỉnh sửa trực tiếp `System Prompt` (sử dụng `@monaco-editor/react` có line numbers & syntax highlight) và `Model` của các AI Nodes và lưu xuống DB.
 - [x] **Task 7.4:** Cấu hình NestJS `ServeStaticModule` để phục vụ thư mục `public/` khi chạy local, giải quyết xung đột Regex của Express 5.
+- [x] **Task 7.5:** Cấu hình **Vercel Monorepo Deployment Pipeline (Zero-config)**: Tích hợp script `build:ui` để tự động compile React và chuyển các static files (`index.html`, `assets/`,...) ra thư mục gốc (root), cho phép Vercel Edge CDN tự động nhận diện và serve với cấu hình `handle: filesystem` tối giản.
 
 ---
 

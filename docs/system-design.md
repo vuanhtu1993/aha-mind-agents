@@ -344,6 +344,40 @@ Thay vì thiết lập một repository độc lập, `aha-mind-agents` tích h�
     - Chỉnh sửa trực tiếp System Prompt bằng **Monaco Editor** (`@monaco-editor/react` - Lõi của VSCode) với đầy đủ tính năng Syntax Highlighting và Line Numbers.
     - Cho phép thay đổi Model của từng Agent Node theo thời gian thực.
 
+### 8.1. Vercel Monorepo Deployment Pipeline (Zero-config Edge CDN)
+
+Để tối ưu hóa việc phân phối, UI tĩnh (HTML, CSS, JS) và API Serverless (NestJS) được triển khai cùng nhau trên một Vercel Project duy nhất (Monorepo) theo quy trình tự động hóa sau:
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant Git as GitHub
+    participant Edge as Vercel Edge CDN
+    participant Nest as NestJS Serverless
+
+    Dev->>Dev: pnpm run build:ui (Build React & Copy ra root)
+    Dev->>Git: git commit & push (index.html, assets/ ở root)
+    Git->>Edge: Vercel Preset tự động quét file tĩnh ở root
+    Edge->>Edge: Upload UI files lên Global CDN mạng lưới Vercel
+    Git->>Nest: Vercel biên dịch api/*.ts thành Serverless Function
+    
+    actor User
+    User->>Edge: GET / (hoặc /assets/*)
+    Edge-->>User: Trả về file tĩnh cực nhanh (0ms latency) từ CDN
+    User->>Edge: GET /api/agents/*
+    Edge->>Nest: Route `source: /api/(.*)` chuyển tới Serverless
+    Nest-->>User: Xử lý logic & Stream SSE (Keep-alive)
+```
+
+**Workflow triển khai:**
+1. Khi có cập nhật giao diện, chỉ cần chạy lệnh `pnpm run build:ui`. Lệnh này sử dụng Vite build ra thư mục `public/`, sau đó tự động sao chép (`cp`) các files (như `index.html`, `assets/`, `favicon.svg`) ra thẳng thư mục gốc (root).
+2. Developer thực hiện **commit các files tĩnh này vào Git** cùng với mã nguồn.
+3. Nhờ cơ chế `handle: filesystem` trong `vercel.json` kết hợp với NestJS Preset mặc định của Vercel (không dùng `buildCommand` tuỳ chỉnh gây ghi đè), Vercel sẽ tự động:
+   - Dùng **Edge CDN** để serve các file tĩnh nằm ở thư mục root với hiệu năng tối đa.
+   - Dùng **Serverless Function** (`api/index.ts`) để hứng các request API động và luồng SSE streaming.
+
+Cơ chế này loại bỏ hoàn toàn các lỗi xung đột đường dẫn (404 Not Found), MIME type errors (khi file JS bị nhận diện nhầm thành text/html) và mang lại giải pháp hoàn thiện, bền vững nhất trên nền tảng Vercel.
+
 ---
 
 *Made by Anh Tu - Share to be share*
