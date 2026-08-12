@@ -19,6 +19,7 @@ export default function LogsPage() {
 
   // Setup SSE
   useEffect(() => {
+    // Listen SSE from dashboard controller
     const eventSource = new EventSource('/api/v1/dashboard/events');
 
     eventSource.addEventListener('JOB_STARTED', (e: any) => {
@@ -32,7 +33,7 @@ export default function LogsPage() {
           pipeline: payload.pipeline,
           createdAt: new Date(payload.timestamp).toISOString(),
           durationMs: 0,
-          currentStep: 'Khởi tạo Agent...',
+          currentStep: 'Đang khởi tạo Agent...',
           tokenUsage: null
         }
       }));
