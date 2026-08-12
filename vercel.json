@@ -1,31 +1,18 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.ts",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "admin-ui/dist/**",
-      "use": "@vercel/static"
+  "functions": {
+    "api/**/*": {
+      "includeFiles": "dist/public/**"
     }
-  ],
-  "routes": [
+  },
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.ts"
+      "source": "/api/(.*)",
+      "destination": "/api/index.ts"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/admin-ui/dist/assets/$1"
-    },
-    {
-      "src": "/(.*\\.svg)",
-      "dest": "/admin-ui/dist/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/admin-ui/dist/index.html"
+      "source": "/(.*)",
+      "destination": "/api/index.ts"
     }
   ]
 }

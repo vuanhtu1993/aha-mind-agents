@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build && cd admin-ui && pnpm install && pnpm run build",
+    "build": "cd admin-ui && pnpm install && pnpm run build && cd .. && nest build && cp -R public dist/public",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

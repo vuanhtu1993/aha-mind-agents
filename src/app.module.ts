@@ -19,9 +19,7 @@ import { DashboardModule } from './api/dashboard/dashboard.module';
  * - validate: validateEnv -> Kiểm tra hợp lệ bằng Zod ngay khi app khởi động.
  */
 
-// Sử dụng kỹ thuật ngắt chuỗi để bypass Vercel's Node File Tracer (nft)
-// Vercel Edge Network sẽ trực tiếp serve thư mục public, không cần Serverless Function.
-const getPublicPath = () => join(process.cwd(), ['p', 'u', 'b', 'l', 'i', 'c'].join(''));
+const getPublicPath = () => join(__dirname, '..', 'public');
 
 @Module({
   imports: [
@@ -29,11 +27,9 @@ const getPublicPath = () => join(process.cwd(), ['p', 'u', 'b', 'l', 'i', 'c'].j
       isGlobal: true,
       validate: validateEnv,
     }),
-    ...(process.env.VERCEL !== '1' ? [
-      ServeStaticModule.forRoot({
-        rootPath: getPublicPath(),
-      })
-    ] : []),
+    ServeStaticModule.forRoot({
+      rootPath: getPublicPath(),
+    }),
     DatabaseModule,
     CoreModule,
     HealthModule,
