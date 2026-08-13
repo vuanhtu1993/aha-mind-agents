@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
-import { GeminiRotatorService } from './services/gemini-rotator.service';
+import { GeminiService } from './gemini/gemini.service';
+import { GeminiRateLimiterService } from './gemini/gemini-rate-limiter.service';
 import { PluginRegistryService } from './services/plugin-registry.service';
 import { RedisPubSubService } from './services/redis-pubsub.service';
 import { TtsToolService } from './tools/tts.tool';
@@ -9,7 +10,8 @@ import { ScraperToolService } from './tools/scraper.tool';
 @Global()
 @Module({
   providers: [
-    GeminiRotatorService,
+    GeminiService,
+    GeminiRateLimiterService,
     PluginRegistryService,
     RedisPubSubService,
     TtsToolService,
@@ -17,7 +19,8 @@ import { ScraperToolService } from './tools/scraper.tool';
     ScraperToolService,
   ],
   exports: [
-    GeminiRotatorService,
+    GeminiService,
+    GeminiRateLimiterService,
     PluginRegistryService,
     RedisPubSubService,
     TtsToolService,

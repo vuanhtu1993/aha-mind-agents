@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GeminiRotatorService } from '../../../core/services/gemini-rotator.service';
+import { GeminiService } from '../../../core/gemini/gemini.service';
 import { IdentifiedKeywordListSchema } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
 
@@ -21,7 +21,7 @@ Output valid JSON matching the schema.`;
 export class KeywordIdentifierNode {
   private readonly logger = new Logger(KeywordIdentifierNode.name);
 
-  constructor(private readonly gemini: GeminiRotatorService) {}
+  constructor(private readonly gemini: GeminiService) {}
 
   public async invoke(state: StoryShadowingStateType): Promise<Partial<StoryShadowingStateType>> {
     // Đối với Text Pipeline: state.rawText có sẵn.

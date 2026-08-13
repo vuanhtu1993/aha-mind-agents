@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GeminiRotatorService } from '../../../core/services/gemini-rotator.service';
+import { GeminiService } from '../../../core/gemini/gemini.service';
 import { GeminiSentenceListSchema } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
 
@@ -23,7 +23,7 @@ Rules:
 export class SentenceSplitterNode {
   private readonly logger = new Logger(SentenceSplitterNode.name);
 
-  constructor(private readonly gemini: GeminiRotatorService) {}
+  constructor(private readonly gemini: GeminiService) {}
 
   public async invoke(state: StoryShadowingStateType): Promise<Partial<StoryShadowingStateType>> {
     if (state.error || !state.rawText) return {};

@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { GeminiRateLimiterService } from './gemini-rate-limiter.service';
 
 /**
  * Service quản lý xoay vòng API Keys của Google Gemini.
@@ -8,8 +9,8 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
  * bằng cách tự động nhảy sang API Key dự phòng (Failover) khi Key hiện tại gặp giới hạn.
  */
 @Injectable()
-export class GeminiRotatorService implements OnModuleInit {
-  private readonly logger = new Logger(GeminiRotatorService.name);
+export class GeminiService implements OnModuleInit {
+  private readonly logger = new Logger(GeminiService.name);
 
   private apiKeys: string[] = [];
   private currentKeyIndex: number = 0;
@@ -18,7 +19,10 @@ export class GeminiRotatorService implements OnModuleInit {
   private cooldownMap: Record<string, number> = {};
   private readonly COOLDOWN_DURATION_MS = 5 * 60 * 1000; // 5 phút
 
-  constructor(private readonly configService: ConfigService) { }
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly rateLimiter: GeminiRateLimiterService
+  ) { }
 
   onModuleInit() {
     this.initKeys();
@@ -127,6 +131,7 @@ export class GeminiRotatorService implements OnModuleInit {
         const errMsg = error?.message?.toLowerCase() || '';
         if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('exhausted') || errMsg.includes('503')) {
           const failedKey = this.apiKeys[this.currentKeyIndex];
+          this.logger.warn(`Lỗi từ Google API (Key ${this.currentKeyIndex + 1}): ${error.message}`);
           this.markKeyAsExhausted(failedKey);
           attempts++;
           continue; // Vòng lặp sẽ gọi lại getActiveKey() trong operation() để lấy key mới
@@ -145,7 +150,9 @@ export class GeminiRotatorService implements OnModuleInit {
   public async invoke(messages: any[], options?: { temperature?: number, searchGrounding?: boolean, model?: string }): Promise<{ text: string, usage: { promptTokens: number, completionTokens: number, totalTokens: number } }> {
     return this.executeWithFailover(async () => {
       const model = this.getModelWithOptions(options);
-      const response = await model.invoke(messages);
+      const response = await this.rateLimiter.execute(1000, async () => {
+        return await model.invoke(messages);
+      });
       return {
         text: response.content as string,
         usage: {
@@ -166,7 +173,9 @@ export class GeminiRotatorService implements OnModuleInit {
       const structuredOptions = options?.name ? { name: options.name, includeRaw: true } : { includeRaw: true };
       const structuredLlm = model.withStructuredOutput(schema, structuredOptions as any);
 
-      const response = await structuredLlm.invoke(prompt);
+      const response = await this.rateLimiter.execute(1000, async () => {
+        return await structuredLlm.invoke(prompt);
+      });
       const rawMessage = response.raw;
 
       return {

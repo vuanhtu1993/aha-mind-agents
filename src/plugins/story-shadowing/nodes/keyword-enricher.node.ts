@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GeminiRotatorService } from '../../../core/services/gemini-rotator.service';
+import { GeminiService } from '../../../core/gemini/gemini.service';
 import { GeminiBatchKeywordEnrichSchema, IdentifiedKeywordItem } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
 
@@ -7,7 +7,7 @@ import { StoryShadowingStateType } from '../story-shadowing.state';
 export class KeywordEnricherNode {
   private readonly logger = new Logger(KeywordEnricherNode.name);
 
-  constructor(private readonly gemini: GeminiRotatorService) { }
+  constructor(private readonly gemini: GeminiService) { }
 
   private getBatchEnrichmentUserPrompt(items: IdentifiedKeywordItem[]) {
     const itemsListStr = items.map((item, i) => `

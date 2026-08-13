@@ -31,7 +31,8 @@ export class RedisPubSubService implements OnModuleInit, OnModuleDestroy {
       process.env.REDIS_URL ||
       'redis://localhost:6379';
 
-    this.logger.log(`Khởi tạo Redis Pub/Sub kết nối tới: ${redisUri}`);
+    this.logger.log(`Khởi tạo Redis Pub/Sub kết nối tới redis server
+      `);
 
     // Khởi tạo Publisher Client
     this.pubClient = new Redis(redisUri, {

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GeminiRotatorService } from '../../../core/services/gemini-rotator.service';
+import { GeminiService } from '../../../core/gemini/gemini.service';
 import { GeminiYoutubeConsolidatedSchema } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
 
@@ -40,7 +40,7 @@ Do NOT lose any audio gap, endMs MUST be the exact end time of the last block fo
 export class YoutubeSentenceConsolidatorNode {
   private readonly logger = new Logger(YoutubeSentenceConsolidatorNode.name);
 
-  constructor(private readonly gemini: GeminiRotatorService) {}
+  constructor(private readonly gemini: GeminiService) { }
 
   public async invoke(state: StoryShadowingStateType): Promise<Partial<StoryShadowingStateType>> {
     if (state.error || !state.youtubeTranscript) return {};
@@ -49,7 +49,7 @@ export class YoutubeSentenceConsolidatorNode {
 
     try {
       const MAX_BLOCKS = 400;
-      const CHUNK_SIZE = 30;
+      const CHUNK_SIZE = 100;
       const transcriptToProcess = state.youtubeTranscript.slice(0, MAX_BLOCKS);
 
       const chunkPromises = [];
@@ -74,7 +74,7 @@ export class YoutubeSentenceConsolidatorNode {
 
         chunkPromises.push(
           this.gemini.invokeStructured(
-            GeminiYoutubeConsolidatedSchema, 
+            GeminiYoutubeConsolidatedSchema,
             [
               { role: 'system', content: prompt },
               { role: 'user', content: inputText },
@@ -88,18 +88,18 @@ export class YoutubeSentenceConsolidatorNode {
 
       let allSentences: any[] = [];
       let overallLevel = chunkResults[0]?.parsed?.level || 'medium';
-      
+
       let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
       let currentId = 0;
       for (let i = 0; i < chunkResults.length; i++) {
         const parsed = chunkResults[i].parsed;
         const usage = chunkResults[i].usage;
-        
+
         totalUsage.promptTokens += usage.promptTokens;
         totalUsage.completionTokens += usage.completionTokens;
         totalUsage.totalTokens += usage.totalTokens;
-        
+
         const offset = chunkOffsets[i];
         for (const s of parsed.sentences) {
           s.id = currentId++;
@@ -156,7 +156,7 @@ export class YoutubeSentenceConsolidatorNode {
 
       return {
         rawSentences: allSentences,
-        level: overallLevel as 'easy'|'medium'|'hard',
+        level: overallLevel as 'easy' | 'medium' | 'hard',
         sentences: allSentences.map(s => ({ ...s, audioBase64: '' })), // Youtube không chạy qua TTS
         tokenUsage: totalUsage,
       };
