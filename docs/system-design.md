@@ -3,6 +3,7 @@
 > **Tài Liệu Kiến Trúc Kỹ Thuật (Technical Architecture Document)**
 > Hệ thống Backend độc lập quản lý, điều phối và thực thi Multi-Agent Workflows
 > theo mô hình **Plugin Architecture** tối ưu hóa cho **Vercel Serverless + Direct SSE Streaming (In-Process)**.
+> Hỗ trợ **Real-time Observability** cho Admin Dashboard qua **Redis Pub/Sub (Upstash)** và **Gemini Rate Limiter** để phòng ngừa lỗi 429 Quota.
 
 ---
 
@@ -65,32 +66,31 @@ graph TD
 │                                                                                  │
 │   ┌──────────────────────────────────────────────────────────────────────────┐   │
 │   │ Unified Agent Controller (`AgentsController`)                            │   │
-│   │ - POST `/api/agents/story-shadowing/text`                                │   │
-│   │ - POST `/api/agents/story-shadowing/youtube`                             │   │
-│   │ - POST `/api/agents/story-shadowing/create-series`                       │   │
-│   └─────────────────────────────────────┬────────────────────────────────────┘   │
-│                                         │ Resolve Plugin                         │
-│                                         ▼                                        │
+│   │ - POST `/api/agents/story-shadowing/text`    → Direct SSE to End-User    │   │
+│   │ - POST `/api/agents/story-shadowing/youtube` → writeSseEvent() + publish │   │
+│   └───────────────────────┬─────────────────────────┬──────────────────────-┘   │
+│                           │ Dual Emit Pattern         │                           │
+│              ┌────────────▼──────────┐    ┌──────────▼──────────────────────┐   │
+│              │ writeSseEvent()       │    │ redisPubSub.publishEvent()      │   │
+│              │ (Trực tiếp End-User)  │    │ (Broadcast toàn bộ hệ thống)    │   │
+│              └────────────┬──────────┘    └──────────┬──────────────────────┘   │
+│                           │                          │                           │
+│                  ┌────────▼────────┐        ┌────────▼─────────────────────┐    │
+│                  │  End-User       │        │  Upstash Redis (Pub/Sub)     │    │
+│                  │  SSE Stream     │        │  Channel: `dashboard:events` │    │
+│                  └─────────────────┘        └────────┬─────────────────────┘    │
+│                                                      │ Subscribe                │
+│                                            ┌─────────▼──────────────────────┐  │
+│                                            │ Dashboard Controller            │  │
+│                                            │ GET /api/v1/dashboard/events   │  │
+│                                            │ (SSE Fan-out → Admin UI)       │  │
+│                                            └────────────────────────────────┘  │
+│                                                                                  │
 │   ┌──────────────────────────────────────────────────────────────────────────┐   │
-│   │ Plugin Registry Service (`PluginRegistryService`)                        │   │
-│   │  ├── StoryShadowingPlugin (Text & YouTube Pipelines)                     │   │
-│   │  ├── OptaPredictorPlugin (Future)                                        │   │
-│   │  └── GeneralChatPlugin (Future)                                          │   │
-│   └─────────────────────────────────────┬────────────────────────────────────┘   │
-│                                         │ Execute In-Process Stream              │
-│                                         ▼                                        │
-│   ┌──────────────────────────────────────────────────────────────────────────┐   │
-│   │ Execution Driver (In-Process LangGraph Executor)                         │   │
-│   │  ├── Chunk-by-chunk LangGraph Streamer                                   │   │
-│   │  ├── Event Emitter & SSE Adapter                                         │   │
-│   │  └── Failover API Key Manager (Gemini Key Rotation)                      │   │
-│   └─────────────────────────────────────┬────────────────────────────────────┘   │
-│                                         │                                        │
-│   ┌─────────────────────────────────────┴────────────────────────────────────┐   │
-│   │ Shared Tool Gateway Layer                                                │   │
-│   │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │   │
-│   │  │ Gemini Tool  │ │ TTS Tool     │ │ YouTube Tool │ │ Scraper Tool │    │   │
-│   │  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘    │   │
+│   │ Plugin Registry Service → Execution Driver (In-Process LangGraph)        │   │
+│   │  ├── GeminiService (Key Rotation + Rate Limiter Queue)                   │   │
+│   │  ├── GeminiRateLimiterService (RPM/TPM Queue, chống 429)                 │   │
+│   │  └── Shared Tools: TTS / YouTube / Scraper                               │   │
 │   └─────────────────────────────────────┬────────────────────────────────────┘   │
 └─────────────────────────────────────────┼────────────────────────────────────────┘
                                           │ Direct Writes
@@ -238,28 +238,109 @@ sequenceDiagram
 
 ---
 
-## 5. Cấu Trúc Thư Mục Chuẩn Hóa (Project Structure)
+## 5. Real-time Observability Architecture (Redis Pub/Sub)
+
+### 5.1. Dual Emit Pattern — Tại sao cần 2 kênh?
+
+Mỗi sự kiện trong `AgentsController` được bắn đồng thời qua 2 kênh với vai trò khác nhau:
+
+| Kênh | Cơ chế | Nhận | Mục đích |
+|---|---|---|---|
+| `writeSseEvent()` | HTTP SSE trực tiếp | End-User (1 người) | Kết quả thời gian thực cho người gọi API |
+| `redisPubSub.publishEvent()` | Redis Pub/Sub | Admin Dashboard (n người) | Theo dõi toàn hệ thống |
+
+### 5.2. Luồng sự kiện Admin Dashboard
+
+```mermaid
+sequenceDiagram
+    actor User as End-User
+    participant AC as AgentsController
+    participant Redis as Upstash Redis
+    participant DC as DashboardController
+    actor Admin as Admin Dashboard
+
+    User->>AC: POST /api/agents/... (chạy job)
+    AC-->>User: SSE stream (trực tiếp)
+    AC->>Redis: publish('dashboard:events', { type: 'JOB_STEP', jobId, data })
+
+    Admin->>DC: GET /api/v1/dashboard/events (mở SSE)
+    Redis-->>DC: Receive published event
+    DC-->>Admin: SSE fan-out: event: JOB_STEP { jobId, data }
+```
+
+### 5.3. Các loại sự kiện Redis Pub/Sub
+
+| Event Type | Trigger | Payload |
+|---|---|---|
+| `JOB_STARTED` | Bắt đầu chạy pipeline | `{ jobId, pluginId, pipeline, timestamp }` |
+| `JOB_STEP` | Mỗi bước LangGraph hoàn thành | `{ jobId, pluginId, data: ProgressEvent }` |
+| `JOB_COMPLETED` | Pipeline hoàn tất thành công | `{ jobId, pluginId, durationMs, tokenUsage }` |
+| `JOB_FAILED` | Pipeline thất bại | `{ jobId, pluginId, error }` |
+
+---
+
+## 6. Gemini Rate Limiting Architecture
+
+### 6.1. Vấn đề — Tại sao cần Rate Limiter?
+
+Mỗi Pipeline Job kích hoạt nhiều LLM Nodes chạy **song song** (`Promise.all`). Ví dụ `YoutubeSentenceConsolidatorNode` có thể bắn **400 / 30 = 14 Requests** cùng lúc lên Google API. Với giới hạn Free Tier là **5 RPM**, đây là công thức đảm bảo lỗi `429 Too Many Requests`.
+
+### 6.2. Kiến trúc 2 lớp (Key Rotation + Rate Limiter Queue)
+
+```
+Node (gọi GeminiService.invokeStructured())
+     │
+     ▼
+┌───────────────────────────────────────────────────┐
+│  GeminiService (Key Rotation Layer)               │
+│  • Phát hiện lỗi 429/503                          │
+│  • Tự động đánh dấu Key bị lỗi vào Cooldown 5ph  │
+│  • Nhảy sang Key kế tiếp tự động                  │
+│                                                   │
+│  ┌─────────────────────────────────────────────┐  │
+│  │  GeminiRateLimiterService (Queue Layer)     │  │
+│  │  • Queue FIFO cho tất cả LLM requests       │  │
+│  │  • Giới hạn RPM_LIMIT = 5 req/phút          │  │
+│  │  • Tự động Sleep() chờ reset nếu đầy queue  │  │
+│  │  • Tính toán Token ước tính (chars / 4)     │  │
+│  └─────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────┘
+     │
+     ▼
+ Google Gemini API
+```
+
+### 6.3. Kết quả
+- **Trước:** 14 Requests bắn đồng loạt → 429 → Key bị khóa → Rotator kích hoạt oan → Tất cả Keys bị Cooldown → Pipeline sập.
+- **Sau:** 5 Requests đầu chạy → Queue ngủ đúng giờ → 5 Requests tiếp theo → Không bao giờ có lỗi 429 nữa.
+
+---
+
+## 7. Cấu Trúc Thư Mục Chuẩn Hóa (Project Structure)
 
 ```
 src/
 ├── api/                                # Tầng Tiếp Nhận API Gateway
 │   ├── agents/
-│   │   ├── agents.controller.ts        # Unified Dynamic Controller (SSE Stream)
+│   │   ├── agents.controller.ts        # Unified Controller (SSE + Redis Pub/Sub Dual Emit)
 │   │   └── agents.module.ts
 │   ├── health/
 │   │   ├── health.controller.ts        # Liveness probe
 │   │   └── health.module.ts
 │   └── dashboard/
-│       ├── dashboard.controller.ts     # Thống kê, logs & configs
+│       ├── dashboard.controller.ts     # Metrics, Logs, Configs & SSE Fan-out
 │       └── dashboard.module.ts
 │
 ├── core/                               # Tầng Khung Cơ Bản & Shared Abstractions
 │   ├── plugin.interface.ts             # Agent Plugin Contract
-│   ├── plugin-registry.service.ts      # Registry quản lý & lookup plugin
+│   ├── core.module.ts                  # @Global Module cung cấp tất cả Services
+│   ├── gemini/                         # ✅ Module Gemini (Mới - Đã quy hoạch lại)
+│   │   ├── gemini.service.ts           # Key Rotation + Failover (đổi tên từ gemini-rotator)
+│   │   └── gemini-rate-limiter.service.ts # RPM/TPM Queue, chống 429 Quota
 │   ├── services/
-│   │   └── gemini-rotator.service.ts   # Quản lý xoay vòng 6 API Keys tự động
+│   │   ├── plugin-registry.service.ts  # Registry quản lý & lookup plugin
+│   │   └── redis-pubsub.service.ts     # ✅ Upstash Redis Pub/Sub (Mới)
 │   └── tools/                          # Bộ Tool dùng chung cho mọi Agent
-│       ├── gemini.tool.ts
 │       ├── tts.tool.ts
 │       ├── youtube.tool.ts
 │       └── scraper.tool.ts
@@ -267,9 +348,8 @@ src/
 ├── plugins/                            # Tầng Agent Plugins (Độc Lập, Có Thể Cắm/Rút)
 │   ├── story-shadowing/
 │   │   ├── story-shadowing.plugin.ts   # Triển khai AgentPlugin Interface
-│   │   ├── state/
-│   │   │   ├── text.state.ts
-│   │   │   └── youtube.state.ts
+│   │   ├── story-shadowing.state.ts
+│   │   ├── story-shadowing.schema.ts
 │   │   ├── graphs/
 │   │   │   ├── text.graph.ts
 │   │   │   └── youtube.graph.ts
@@ -279,7 +359,7 @@ src/
 │   │   │   ├── keyword-identifier.node.ts
 │   │   │   ├── keyword-enricher.node.ts
 │   │   │   ├── youtube-fetcher.node.ts
-│   │   │   └── youtube-consolidator.node.ts
+│   │   │   └── youtube-sentence-consolidator.node.ts
 │   │   └── dto/
 │   │       └── story-shadowing.dto.ts
 │   │
@@ -302,11 +382,18 @@ src/
 │
 ├── app.module.ts                       # Root Module
 └── main.ts                             # Local Bootstrap (Port 3001 + Swagger)
+
+admin-ui/                               # ✅ Embedded React SPA (Vite)
+│   ├── src/pages/
+│   │   ├── LogsPage.tsx                # Real-time Job Monitor (SSE /dashboard/events)
+│   │   ├── ConfiguratorPage.tsx        # Node-level Config Editor
+│   │   └── MetricsPage.tsx
+│   └── vite.config.ts                  # outDir: '../public' (copy sang root khi build)
 ```
 
 ---
 
-## 7. High-Level API Contract (Gateway & Dashboard)
+## 8. High-Level API Contract (Gateway & Dashboard)
 
 Mặc dù hệ thống đã tích hợp sẵn Swagger UI (`/api/docs`), tài liệu này tóm tắt các endpoint cốt lõi nhất để Client dễ dàng hình dung bức tranh giao tiếp tổng thể.
 
@@ -321,17 +408,18 @@ Mặc dù hệ thống đã tích hợp sẵn Swagger UI (`/api/docs`), tài li�
   - Bắn liên tục các sự kiện: `init`, `step_start`, `step_complete`, `done`, `error`.
   - Có kèm tín hiệu `ping` mỗi 15s để chống Timeout.
 
-### 7.2. Dashboard & Observability API
+### 8.2. Dashboard & Observability API
 
 - **`GET /api/v1/dashboard/metrics`**: Lấy số liệu tổng quan (Tổng số lượt chạy, Tokens tiêu thụ, Request thành công/thất bại).
 - **`GET /api/v1/dashboard/logs`**: Truy xuất lịch sử chạy chi tiết của các Agent (Hỗ trợ phân trang). Trả về Timeline, Token usage, Thời gian phản hồi của từng Node.
+- **`GET /api/v1/dashboard/events`** ✅ *(Mới)*: **SSE endpoint** dành riêng cho Admin Dashboard. Trả về luồng sự kiện real-time (`JOB_STARTED`, `JOB_STEP`, `JOB_COMPLETED`, `JOB_FAILED`) được nhận từ Upstash Redis Pub/Sub và fan-out tới tất cả Admin Clients đang kết nối.
 - **`GET /api/v1/dashboard/plugins`**: Lấy danh sách toàn bộ Agent Plugins đang đăng ký trong hệ thống, bao gồm Graph, Nodes, Edges.
 - **`GET /api/v1/dashboard/configs/:agentId`**: Lấy cấu hình Prompt và Model hiện tại của một Agent.
 - **`PUT /api/v1/dashboard/configs/:agentId`**: Cập nhật (Ghi đè) linh hoạt System Prompt và Model cấp độ Node (Node-level Override).
 
 ---
 
-## 8. Embedded Admin Dashboard (Static Edge)
+## 9. Embedded Admin Dashboard (Static Edge)
 
 Thay vì thiết lập một repository độc lập, `aha-mind-agents` tích hợp sẵn một **Vite React SPA** siêu nhẹ nằm trong thư mục `admin-ui`.
 - Khi build, code của React SPA sẽ được biên dịch vào thư mục `public/` của NestJS.
@@ -344,7 +432,7 @@ Thay vì thiết lập một repository độc lập, `aha-mind-agents` tích h�
     - Chỉnh sửa trực tiếp System Prompt bằng **Monaco Editor** (`@monaco-editor/react` - Lõi của VSCode) với đầy đủ tính năng Syntax Highlighting và Line Numbers.
     - Cho phép thay đổi Model của từng Agent Node theo thời gian thực.
 
-### 8.1. Vercel Monorepo Deployment Pipeline (Zero-config Edge CDN)
+### 9.1. Vercel Monorepo Deployment Pipeline (Zero-config Edge CDN)
 
 Để tối ưu hóa việc phân phối, UI tĩnh (HTML, CSS, JS) và API Serverless (NestJS) được triển khai cùng nhau trên một Vercel Project duy nhất (Monorepo) theo quy trình tự động hóa sau:
 
