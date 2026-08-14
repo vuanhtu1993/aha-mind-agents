@@ -5,6 +5,7 @@ import { AHA_MIND_CONNECTION } from '../../infra/database/database.constants';
 import { AgentExecLog } from '../../infra/database/schemas/agent-log.schema';
 import { AgentConfig } from '../../infra/database/schemas/agent-config.schema';
 import { PluginRegistryService } from '../../core/services/plugin-registry.service';
+import { RedisPubSubService } from '../../core/services/redis-pubsub.service';
 
 @Injectable()
 export class DashboardService implements OnModuleInit {
@@ -14,6 +15,7 @@ export class DashboardService implements OnModuleInit {
     @InjectModel(AgentExecLog.name, AHA_MIND_CONNECTION) private readonly execLogModel: Model<AgentExecLog>,
     @InjectModel(AgentConfig.name, AHA_MIND_CONNECTION) private readonly configModel: Model<AgentConfig>,
     private readonly pluginRegistry: PluginRegistryService,
+    private readonly redisPubSub: RedisPubSubService,
   ) { }
 
   async onModuleInit() {
@@ -96,17 +98,19 @@ export class DashboardService implements OnModuleInit {
 
   async getLogs(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
-    const [items, total] = await Promise.all([
+    const [dbLogs, total, activeJobs] = await Promise.all([
       this.execLogModel.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      this.execLogModel.countDocuments()
+      this.execLogModel.countDocuments(),
+      this.redisPubSub.getActiveJobs(),
     ]);
+
     return {
-      items,
+      items: [...activeJobs, ...dbLogs],
       meta: {
-        total,
+        total: total + activeJobs.length,
         page,
         limit,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil((total + activeJobs.length) / limit)
       }
     };
   }
