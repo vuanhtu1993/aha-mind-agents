@@ -5,7 +5,7 @@ import { AHA_MIND_CONNECTION } from '../../infra/database/database.constants';
 import { AgentExecLog } from '../../infra/database/schemas/agent-log.schema';
 import { AgentConfig } from '../../infra/database/schemas/agent-config.schema';
 import { PluginRegistryService } from '../../core/services/plugin-registry.service';
-import { RedisPubSubService } from '../../core/services/redis-pubsub.service';
+import { ActiveJobTrackerService } from '../../core/services/active-job-tracker.service';
 
 @Injectable()
 export class DashboardService implements OnModuleInit {
@@ -15,7 +15,7 @@ export class DashboardService implements OnModuleInit {
     @InjectModel(AgentExecLog.name, AHA_MIND_CONNECTION) private readonly execLogModel: Model<AgentExecLog>,
     @InjectModel(AgentConfig.name, AHA_MIND_CONNECTION) private readonly configModel: Model<AgentConfig>,
     private readonly pluginRegistry: PluginRegistryService,
-    private readonly redisPubSub: RedisPubSubService,
+    private readonly activeJobTracker: ActiveJobTrackerService,
   ) { }
 
   async onModuleInit() {
@@ -101,7 +101,7 @@ export class DashboardService implements OnModuleInit {
     const [dbLogs, total, activeJobs] = await Promise.all([
       this.execLogModel.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       this.execLogModel.countDocuments(),
-      this.redisPubSub.getActiveJobs(),
+      this.activeJobTracker.getActiveJobs(),
     ]);
 
     return {

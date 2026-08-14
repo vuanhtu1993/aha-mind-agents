@@ -2,6 +2,7 @@ import { Controller, Get, Put, Param, Body, Query, Sse, MessageEvent } from '@ne
 import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { RedisPubSubService } from '../../core/services/redis-pubsub.service';
+import { AgentConfig } from '../../infra/database/schemas/agent-config.schema';
 import { Observable, map } from 'rxjs';
 
 @ApiTags('Dashboard (Admin)')
@@ -69,7 +70,7 @@ export class DashboardController {
   })
   async updateAgentConfig(
     @Param('agentId') agentId: string,
-    @Body() body: any
+    @Body() body: Partial<AgentConfig>
   ) {
     return this.dashboardService.updateAgentConfig(agentId, body);
   }

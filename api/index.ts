@@ -4,10 +4,10 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import express from 'express';
-import { Express, Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { AppModule } from '../src/app.module';
 
-const server: Express = express();
+const server = express();
 let isAppInitialized = false;
 
 /**
@@ -63,7 +63,7 @@ async function bootstrapServerless() {
   isAppInitialized = true;
 }
 
-export default async function handler(req: Request, res: Response) {
+export default async function handler(req: Request, res: Response): Promise<void> {
   try {
     if (!isAppInitialized) {
       await bootstrapServerless();
