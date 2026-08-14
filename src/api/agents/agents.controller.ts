@@ -159,7 +159,18 @@ export class AgentsController {
         // Bắt Token Usage ở event cuối cùng
         if (event.status === 'done' && event.payload?.tokenUsage) {
           finalTokenUsage = event.payload.tokenUsage;
-          finalStatus = 'completed';
+          if (finalStatus !== 'failed') {
+            finalStatus = 'completed';
+          }
+        }
+
+        // Bắt trạng thái lỗi nếu step phát ra status failed
+        if (event.status === 'failed') {
+          finalStatus = 'failed';
+          finalError = {
+            failedNode: event.stepId || 'unknown_node',
+            message: event.message || 'Pipeline execution failed',
+          };
         }
       },
       error: async (err) => {
@@ -180,16 +191,26 @@ export class AgentsController {
         res.end();
       },
       complete: async () => {
-        this.logger.log(`Job [${jobId}] Hoàn tất.`);
-        if (finalStatus !== 'failed') finalStatus = 'completed';
+        this.logger.log(`Job [${jobId}] Hoàn tất với trạng thái: ${finalStatus}`);
 
-        this.redisPubSub.publishEvent({
-          type: 'JOB_COMPLETED',
-          jobId,
-          pluginId,
-          timestamp: Date.now(),
-          data: { status: finalStatus, tokenUsage: finalTokenUsage },
-        });
+        if (finalStatus === 'failed') {
+          this.redisPubSub.publishEvent({
+            type: 'JOB_FAILED',
+            jobId,
+            pluginId,
+            timestamp: Date.now(),
+            data: { error: finalError },
+          });
+        } else {
+          finalStatus = 'completed';
+          this.redisPubSub.publishEvent({
+            type: 'JOB_COMPLETED',
+            jobId,
+            pluginId,
+            timestamp: Date.now(),
+            data: { status: finalStatus, tokenUsage: finalTokenUsage },
+          });
+        }
 
         await this.saveAgentLog(jobId, pluginId, pipeline, startTime, finalStatus, timeline, finalTokenUsage, finalError);
         res.end();

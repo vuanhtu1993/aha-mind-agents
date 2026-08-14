@@ -22,6 +22,7 @@ export class YoutubePipelineService {
   public execute(
     input: { youtubeUrl: string },
     context: ExecutionContext,
+    entryNodeId?: string,
   ): Observable<ProgressEvent> {
     return new Observable<ProgressEvent>((subscriber) => {
       subscriber.next({ status: 'init', message: 'Khởi tạo YouTube Pipeline...' });
@@ -39,6 +40,8 @@ export class YoutubePipelineService {
 
       const app = workflow.compile();
 
+      let activeStepId = entryNodeId || 'youtubeFetcher';
+
       const runPipeline = async () => {
         try {
           const heartbeatInterval = setInterval(() => {
@@ -50,27 +53,27 @@ export class YoutubePipelineService {
             config: context.config,
           };
           
+          const stepDetails: Record<string, { progress: number; message: string }> = {
+            youtubeFetcher: { progress: 30, message: 'Đã tải phụ đề từ YouTube' },
+            youtubeConsolidator: { progress: 50, message: 'Đã gộp câu và phiên âm IPA' },
+            keywordIdentifier: { progress: 75, message: 'Đã trích xuất từ vựng khó' },
+            keywordEnricher: { progress: 95, message: 'Hoàn thành giải nghĩa từ vựng' },
+          };
+
           for await (const chunk of await app.stream(finalState)) {
-            // Phát event cập nhật tiến độ
-            if (chunk.youtubeFetcher) {
-              Object.assign(finalState, chunk.youtubeFetcher);
+            const nodeKey = Object.keys(chunk)[0];
+            if (nodeKey && chunk[nodeKey]) {
+              activeStepId = nodeKey;
+              Object.assign(finalState, chunk[nodeKey]);
               if (finalState.error) break;
-              subscriber.next({ stepId: 'youtubeFetcher', status: 'completed', progress: 30, message: 'Đã tải phụ đề từ YouTube' });
-            }
-            if (chunk.youtubeConsolidator) {
-              Object.assign(finalState, chunk.youtubeConsolidator);
-              if (finalState.error) break;
-              subscriber.next({ stepId: 'youtubeConsolidator', status: 'completed', progress: 50, message: 'Đã gộp câu và phiên âm IPA' });
-            }
-            if (chunk.keywordIdentifier) {
-              Object.assign(finalState, chunk.keywordIdentifier);
-              if (finalState.error) break;
-              subscriber.next({ stepId: 'keywordIdentifier', status: 'completed', progress: 75, message: 'Đã trích xuất từ vựng khó' });
-            }
-            if (chunk.keywordEnricher) {
-              Object.assign(finalState, chunk.keywordEnricher);
-              if (finalState.error) break;
-              subscriber.next({ stepId: 'keywordEnricher', status: 'completed', progress: 95, message: 'Hoàn thành giải nghĩa từ vựng' });
+
+              const stepInfo = stepDetails[nodeKey] || { progress: 50, message: `Hoàn thành node ${nodeKey}` };
+              subscriber.next({
+                stepId: nodeKey,
+                status: 'completed',
+                progress: stepInfo.progress,
+                message: stepInfo.message,
+              });
             }
           }
 
@@ -88,7 +91,7 @@ export class YoutubePipelineService {
           });
           subscriber.complete();
         } catch (error: any) {
-          subscriber.next({ status: 'failed', message: `Lỗi: ${error.message}` });
+          subscriber.next({ stepId: activeStepId, status: 'failed', message: `Lỗi tại node [${activeStepId}]: ${error.message}` });
           subscriber.complete();
         }
       };

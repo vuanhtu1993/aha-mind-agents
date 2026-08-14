@@ -78,9 +78,11 @@ export default function LogsPage() {
         delete newActive[payload.jobId];
 
         if (job) {
+          const isFailed = payload.type === 'JOB_FAILED' || payload.data?.status === 'failed';
           const completedJob = {
             ...job,
-            status: payload.data?.status || (payload.type === 'JOB_COMPLETED' ? 'completed' : 'failed'),
+            status: isFailed ? 'failed' : (payload.data?.status || 'completed'),
+            error: isFailed ? (payload.data?.error || 'Execution failed') : undefined,
             tokenUsage: payload.data?.tokenUsage,
             durationMs: Date.now() - new Date(job.createdAt).getTime()
           };

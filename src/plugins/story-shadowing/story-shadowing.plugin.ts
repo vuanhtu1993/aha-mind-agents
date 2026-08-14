@@ -165,12 +165,14 @@ export class StoryShadowingPlugin implements AgentPlugin {
     context: ExecutionContext,
   ): Observable<ProgressEvent> {
     return new Observable<ProgressEvent>((subscriber) => {
+      const steps = this.getSteps(pipeline);
+      const entryNodeId = steps.length > 0 ? steps[0].id : undefined;
       let stream$: Observable<ProgressEvent>;
 
       if (pipeline === 'text') {
-        stream$ = this.textPipeline.execute(input, context);
+        stream$ = this.textPipeline.execute(input, context, entryNodeId);
       } else if (pipeline === 'youtube') {
-        stream$ = this.youtubePipeline.execute(input, context);
+        stream$ = this.youtubePipeline.execute(input, context, entryNodeId);
       } else {
         throw new Error(`Pipeline '${pipeline}' không tồn tại.`);
       }
