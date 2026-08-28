@@ -25,7 +25,7 @@ export class AgentsController {
   constructor(
     private readonly pluginRegistry: PluginRegistryService,
     private readonly jobExecutionService: JobExecutionService,
-  ) {}
+  ) { }
 
   /**
    * Lấy danh sách toàn bộ các plugins đang hoạt động

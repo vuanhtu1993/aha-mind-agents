@@ -38,6 +38,18 @@ export interface TimelineEntry {
   timestamp: Date;
 }
 
+export interface JobExecutionState {
+  jobId: string;
+  pluginId: string;
+  pipeline: string;
+  startTime: number;
+  lastEventTime: number;
+  timeline: TimelineEntry[];
+  finalTokenUsage?: Record<string, unknown>;
+  finalStatus: string;
+  finalError?: unknown;
+}
+
 @Injectable()
 export class JobExecutionService {
   private readonly logger = new Logger(JobExecutionService.name);
@@ -50,7 +62,7 @@ export class JobExecutionService {
     private readonly agentExecLogModel: Model<AgentExecLog>,
     @InjectModel(AgentConfig.name, AHA_MIND_CONNECTION)
     private readonly agentConfigModel: Model<AgentConfig>,
-  ) {}
+  ) { }
 
   /**
    * Khởi chạy một Agent Pipeline và điều phối luồng dữ liệu SSE + Redis Pub/Sub + State Tracking
@@ -62,7 +74,57 @@ export class JobExecutionService {
     req: Request,
     res: ExtendedResponse,
   ): Promise<void> {
-    // 1. Tìm Plugin
+    // 1. Kiểm tra plugin, validate input và load config
+    const { plugin, validatedInput, agentConfig } =
+      await this.prepareExecution(pluginId, pipeline, body);
+
+    // 2. Cấu hình HTTP Headers cho SSE
+    this.setupSseHeaders(res);
+
+    // 3. Khởi tạo Job State & Context
+    const jobId = randomUUID();
+    const startTime = Date.now();
+    const state: JobExecutionState = {
+      jobId,
+      pluginId,
+      pipeline,
+      startTime,
+      lastEventTime: startTime,
+      timeline: [],
+      finalStatus: 'running',
+    };
+
+    this.logger.log(
+      `Bắt đầu chạy Job [${jobId}] cho Plugin: ${pluginId} | Pipeline: ${pipeline}`,
+    );
+
+    // 4. Đăng ký Job vào Redis & Bắn sự kiện khởi chạy
+    await this.registerAndNotifyJobStart(jobId, pluginId, pipeline, startTime);
+
+    const context = this.createExecutionContext(jobId, agentConfig);
+
+    try {
+      // 5. Thực thi Plugin Pipeline (Observable Stream)
+      const stream$ = plugin.execute(pipeline, validatedInput, context);
+
+      // 6. Subscribe và điều phối luồng dữ liệu
+      const subscription = this.subscribeToPipelineStream(stream$, res, state);
+
+      // 7. Xử lý khi Client chủ động ngắt kết nối
+      this.handleClientDisconnect(req, subscription, state);
+    } catch (syncErr: unknown) {
+      await this.handleInitError(state, syncErr, res);
+    }
+  }
+
+  /**
+   * Validation & Config Loading
+   */
+  private async prepareExecution(
+    pluginId: string,
+    pipeline: string,
+    body: Record<string, unknown>,
+  ) {
     const plugin = this.pluginRegistry.getPlugin(pluginId);
     if (!plugin) {
       throw new HttpException(
@@ -71,7 +133,6 @@ export class JobExecutionService {
       );
     }
 
-    // 2. Xác thực Input đầu vào
     let validatedInput: unknown;
     try {
       validatedInput = await plugin.validateInput(pipeline, body);
@@ -87,7 +148,6 @@ export class JobExecutionService {
       );
     }
 
-    // 3. Truy xuất cấu hình của Agent từ Database (Dynamic Configuration)
     let agentConfig: Record<string, unknown> | null = null;
     try {
       agentConfig = (await this.agentConfigModel
@@ -100,7 +160,13 @@ export class JobExecutionService {
       );
     }
 
-    // 4. Thiết lập HTTP Headers chuẩn cho SSE
+    return { plugin, validatedInput, agentConfig };
+  }
+
+  /**
+   * Thiết lập HTTP Headers chuẩn cho SSE
+   */
+  private setupSseHeaders(res: ExtendedResponse): void {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -108,21 +174,51 @@ export class JobExecutionService {
     if (typeof res.flushHeaders === 'function') {
       res.flushHeaders();
     }
+  }
 
-    const jobId = randomUUID();
-    const startTime = Date.now();
-    this.logger.log(
-      `Bắt đầu chạy Job [${jobId}] cho Plugin: ${pluginId} | Pipeline: ${pipeline}`,
-    );
+  /**
+   * Ghi chunk SSE dữ liệu tới Client
+   */
+  private writeSseEvent(res: ExtendedResponse, data: unknown): void {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    if (typeof res.flush === 'function') {
+      res.flush();
+    }
+  }
 
-    // 5. Ghi nhận Job vào Redis State
+  /**
+   * Tạo ExecutionContext phục vụ các Node trong Pipeline
+   */
+  private createExecutionContext(
+    jobId: string,
+    agentConfig: Record<string, unknown> | null,
+  ) {
+    return {
+      jobId,
+      config: agentConfig,
+      log: (message: string, meta?: unknown) => {
+        this.logger.log(
+          `[Job ${jobId}] ${message} ${meta ? JSON.stringify(meta) : ''}`,
+        );
+      },
+    };
+  }
+
+  /**
+   * Ghi nhận Job vào Redis Active Tracker và bắn sự kiện JOB_STARTED qua Pub/Sub
+   */
+  private async registerAndNotifyJobStart(
+    jobId: string,
+    pluginId: string,
+    pipeline: string,
+    startTime: number,
+  ): Promise<void> {
     await this.activeJobTracker.registerActiveJob(jobId, {
       pluginId,
       pipeline,
       startedAt: startTime,
     });
 
-    // 6. Bắn sự kiện JOB_STARTED cho Dashboard
     this.redisPubSub
       .publishEvent({
         type: 'JOB_STARTED',
@@ -135,226 +231,265 @@ export class JobExecutionService {
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.warn(`Non-critical publishEvent error: ${msg}`);
       });
+  }
 
-    // Hàm tiện ích ghi chunk SSE
-    const writeSseEvent = (data: unknown) => {
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-      if (typeof res.flush === 'function') {
-        res.flush();
-      }
-    };
-
-    // 7. Tạo ExecutionContext
-    const context = {
-      jobId,
-      config: agentConfig,
-      log: (message: string, meta?: unknown) => {
-        this.logger.log(
-          `[Job ${jobId}] ${message} ${meta ? JSON.stringify(meta) : ''}`,
-        );
+  /**
+   * Lắng nghe luồng dữ liệu từ Observable Pipeline và cập nhật trạng thái
+   */
+  private subscribeToPipelineStream(
+    stream$: unknown,
+    res: ExtendedResponse,
+    state: JobExecutionState,
+  ) {
+    return (stream$ as any).subscribe({
+      next: (event: AgentStreamEvent) => {
+        this.handleStreamNext(event, res, state);
       },
-    };
+      error: async (err: unknown) => {
+        await this.handleStreamError(err, res, state);
+      },
+      complete: async () => {
+        await this.handleStreamComplete(res, state);
+      },
+    });
+  }
 
-    // Các biến phụ trợ cho việc lưu Log
-    let lastEventTime = startTime;
-    const timeline: TimelineEntry[] = [];
-    let finalTokenUsage: Record<string, unknown> | undefined = undefined;
-    let finalStatus = 'running';
-    let finalError: unknown = undefined;
+  /**
+   * Xử lý sự kiện kế tiếp trong Stream
+   */
+  private handleStreamNext(
+    event: AgentStreamEvent,
+    res: ExtendedResponse,
+    state: JobExecutionState,
+  ): void {
+    this.writeSseEvent(res, event);
 
-    // Hàm dọn dẹp Redis và ghi Log DB an toàn
-    const cleanupAndFinalize = async (status: string, error?: unknown) => {
-      finalStatus = status;
-      if (error) finalError = error;
+    // Bắn sự kiện JOB_STEP cho Dashboard
+    this.redisPubSub
+      .publishEvent({
+        type: 'JOB_STEP',
+        jobId: state.jobId,
+        pluginId: state.pluginId,
+        timestamp: Date.now(),
+        data: event,
+      })
+      .catch(() => { });
 
-      try {
-        await this.activeJobTracker.removeActiveJob(jobId);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.error(
-          `Lỗi dọn dẹp Redis Key cho Job [${jobId}]: ${msg}`,
-        );
+    // Cập nhật currentStep vào Redis Hash
+    if (event.message) {
+      const completedStepName =
+        event.status === 'completed' && event.stepId
+          ? event.stepId
+          : undefined;
+      this.activeJobTracker
+        .updateActiveJobStep(state.jobId, event.message, completedStepName)
+        .catch(() => { });
+    }
+
+    // Bắt sự kiện timeline của các Node
+    if (event.status === 'completed' || event.status === 'failed') {
+      const now = Date.now();
+      state.timeline.push({
+        nodeName: event.stepId || 'unknown_node',
+        status: event.status,
+        durationMs: now - state.lastEventTime,
+        timestamp: new Date(),
+      });
+      state.lastEventTime = now;
+    }
+
+    // Bắt Token Usage ở event cuối cùng
+    if (event.status === 'done' && event.payload?.tokenUsage) {
+      state.finalTokenUsage = event.payload.tokenUsage as Record<
+        string,
+        unknown
+      >;
+      if (state.finalStatus !== 'failed') {
+        state.finalStatus = 'completed';
       }
+    }
 
-      try {
-        await this.saveAgentLog(
-          jobId,
-          pluginId,
-          pipeline,
-          startTime,
-          finalStatus,
-          timeline,
-          finalTokenUsage,
-          finalError,
-        );
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.error(
-          `Lỗi lưu DB Log cho Job [${jobId}]: ${msg}`,
-        );
-      }
-    };
+    // Bắt trạng thái lỗi nếu step phát ra status failed
+    if (event.status === 'failed') {
+      state.finalStatus = 'failed';
+      state.finalError = {
+        failedNode: event.stepId || 'unknown_node',
+        message: event.message || 'Pipeline execution failed',
+      };
+    }
+  }
 
-    try {
-      // Kích hoạt Plugin duy nhất 1 lần
-      const stream$ = plugin.execute(pipeline, validatedInput, context);
+  /**
+   * Xử lý khi luồng bị lỗi ở cấp độ Observable
+   */
+  private async handleStreamError(
+    err: unknown,
+    res: ExtendedResponse,
+    state: JobExecutionState,
+  ): Promise<void> {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    this.logger.error(`Job [${state.jobId}] Lỗi: ${errMsg}`);
+    this.writeSseEvent(res, {
+      status: 'failed',
+      message: `Lỗi hệ thống: ${errMsg}`,
+    });
 
-      // Đăng ký nhận luồng sự kiện
-      const subscription = (stream$ as any).subscribe({
-        next: (event: AgentStreamEvent) => {
-          writeSseEvent(event);
+    this.redisPubSub
+      .publishEvent({
+        type: 'JOB_FAILED',
+        jobId: state.jobId,
+        pluginId: state.pluginId,
+        pipeline: state.pipeline,
+        timestamp: Date.now(),
+        data: { error: errMsg },
+      })
+      .catch(() => { });
 
-          // Bắn sự kiện JOB_STEP cho Dashboard
-          this.redisPubSub
-            .publishEvent({
-              type: 'JOB_STEP',
-              jobId,
-              pluginId,
-              timestamp: Date.now(),
-              data: event,
-            })
-            .catch(() => {});
+    await this.cleanupAndFinalize(state, 'failed', errMsg);
+    res.end();
+  }
 
-          // Cập nhật currentStep vào Redis Hash
-          if (event.message) {
-            const completedStepName =
-              event.status === 'completed' && event.stepId
-                ? event.stepId
-                : undefined;
-            this.activeJobTracker
-              .updateActiveJobStep(jobId, event.message, completedStepName)
-              .catch(() => {});
-          }
+  /**
+   * Xử lý khi luồng Pipeline kết thúc thành công
+   */
+  private async handleStreamComplete(
+    res: ExtendedResponse,
+    state: JobExecutionState,
+  ): Promise<void> {
+    this.logger.log(
+      `Job [${state.jobId}] Hoàn tất với trạng thái: ${state.finalStatus}`,
+    );
 
-          // Bắt sự kiện timeline của các Node
-          if (event.status === 'completed' || event.status === 'failed') {
-            const now = Date.now();
-            timeline.push({
-              nodeName: event.stepId || 'unknown_node',
-              status: event.status,
-              durationMs: now - lastEventTime,
-              timestamp: new Date(),
-            });
-            lastEventTime = now;
-          }
+    if (state.finalStatus === 'failed') {
+      this.redisPubSub
+        .publishEvent({
+          type: 'JOB_FAILED',
+          jobId: state.jobId,
+          pluginId: state.pluginId,
+          pipeline: state.pipeline,
+          timestamp: Date.now(),
+          data: { error: state.finalError },
+        })
+        .catch(() => { });
+    } else {
+      state.finalStatus = 'completed';
+      this.redisPubSub
+        .publishEvent({
+          type: 'JOB_COMPLETED',
+          jobId: state.jobId,
+          pluginId: state.pluginId,
+          pipeline: state.pipeline,
+          timestamp: Date.now(),
+          data: {
+            status: state.finalStatus,
+            tokenUsage: state.finalTokenUsage,
+          },
+        })
+        .catch(() => { });
+    }
 
-          // Bắt Token Usage ở event cuối cùng
-          if (event.status === 'done' && event.payload?.tokenUsage) {
-            finalTokenUsage = event.payload.tokenUsage as Record<string, unknown>;
-            if (finalStatus !== 'failed') {
-              finalStatus = 'completed';
-            }
-          }
+    await this.cleanupAndFinalize(state, state.finalStatus, state.finalError);
+    res.end();
+  }
 
-          // Bắt trạng thái lỗi nếu step phát ra status failed
-          if (event.status === 'failed') {
-            finalStatus = 'failed';
-            finalError = {
-              failedNode: event.stepId || 'unknown_node',
-              message: event.message || 'Pipeline execution failed',
-            };
-          }
-        },
-        error: async (err: unknown) => {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          this.logger.error(`Job [${jobId}] Lỗi: ${errMsg}`);
-          writeSseEvent({
-            status: 'failed',
-            message: `Lỗi hệ thống: ${errMsg}`,
-          });
+  /**
+   * Xử lý ngắt kết nối Client từ phía HTTP Request
+   */
+  private handleClientDisconnect(
+    req: Request,
+    subscription: any,
+    state: JobExecutionState,
+  ): void {
+    if (req && typeof req.on === 'function') {
+      req.on('close', async () => {
+        if (!subscription.closed && state.finalStatus === 'running') {
+          this.logger.warn(
+            `Job [${state.jobId}] Client ngắt kết nối đột ngột. Hủy bỏ tiến trình và dọn dẹp Redis...`,
+          );
+          subscription.unsubscribe();
+
+          const disconnectError = {
+            message: 'Client disconnected prematurely',
+          };
 
           this.redisPubSub
             .publishEvent({
               type: 'JOB_FAILED',
-              jobId,
-              pluginId,
-              pipeline,
+              jobId: state.jobId,
+              pluginId: state.pluginId,
+              pipeline: state.pipeline,
               timestamp: Date.now(),
-              data: { error: errMsg },
+              data: { error: disconnectError },
             })
-            .catch(() => {});
+            .catch(() => { });
 
-          await cleanupAndFinalize('failed', errMsg);
-          res.end();
-        },
-        complete: async () => {
-          this.logger.log(
-            `Job [${jobId}] Hoàn tất với trạng thái: ${finalStatus}`,
-          );
-
-          if (finalStatus === 'failed') {
-            this.redisPubSub
-              .publishEvent({
-                type: 'JOB_FAILED',
-                jobId,
-                pluginId,
-                pipeline,
-                timestamp: Date.now(),
-                data: { error: finalError },
-              })
-              .catch(() => {});
-          } else {
-            finalStatus = 'completed';
-            this.redisPubSub
-              .publishEvent({
-                type: 'JOB_COMPLETED',
-                jobId,
-                pluginId,
-                pipeline,
-                timestamp: Date.now(),
-                data: { status: finalStatus, tokenUsage: finalTokenUsage },
-              })
-              .catch(() => {});
-          }
-
-          await cleanupAndFinalize(finalStatus, finalError);
-          res.end();
-        },
+          await this.cleanupAndFinalize(state, 'failed', disconnectError);
+        }
       });
+    }
+  }
 
-      // Nếu Client ngắt kết nối đột ngột
-      if (req && typeof req.on === 'function') {
-        req.on('close', async () => {
-          if (!subscription.closed && finalStatus === 'running') {
-            this.logger.warn(
-              `Job [${jobId}] Client ngắt kết nối đột ngột. Hủy bỏ tiến trình và dọn dẹp Redis...`,
-            );
-            subscription.unsubscribe();
+  /**
+   * Xử lý lỗi khởi tạo đồng bộ
+   */
+  private async handleInitError(
+    state: JobExecutionState,
+    syncErr: unknown,
+    res: ExtendedResponse,
+  ): Promise<void> {
+    const errMsg =
+      syncErr instanceof Error ? syncErr.message : String(syncErr);
+    this.logger.error(`Lỗi khi khởi tạo Job [${state.jobId}]: ${errMsg}`);
+    this.redisPubSub
+      .publishEvent({
+        type: 'JOB_FAILED',
+        jobId: state.jobId,
+        pluginId: state.pluginId,
+        pipeline: state.pipeline,
+        timestamp: Date.now(),
+        data: { error: errMsg },
+      })
+      .catch(() => { });
+    await this.cleanupAndFinalize(state, 'failed', errMsg);
+    res.end();
+  }
 
-            const disconnectError = {
-              message: 'Client disconnected prematurely',
-            };
+  /**
+   * Dọn dẹp Redis và ghi Log DB an toàn
+   */
+  private async cleanupAndFinalize(
+    state: JobExecutionState,
+    status: string,
+    error?: unknown,
+  ): Promise<void> {
+    state.finalStatus = status;
+    if (error) state.finalError = error;
 
-            this.redisPubSub
-              .publishEvent({
-                type: 'JOB_FAILED',
-                jobId,
-                pluginId,
-                pipeline,
-                timestamp: Date.now(),
-                data: { error: disconnectError },
-              })
-              .catch(() => {});
+    try {
+      await this.activeJobTracker.removeActiveJob(state.jobId);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Lỗi dọn dẹp Redis Key cho Job [${state.jobId}]: ${msg}`,
+      );
+    }
 
-            await cleanupAndFinalize('failed', disconnectError);
-          }
-        });
-      }
-    } catch (syncErr: unknown) {
-      const errMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
-      this.logger.error(`Lỗi khi khởi tạo Job [${jobId}]: ${errMsg}`);
-      this.redisPubSub
-        .publishEvent({
-          type: 'JOB_FAILED',
-          jobId,
-          pluginId,
-          pipeline,
-          timestamp: Date.now(),
-          data: { error: errMsg },
-        })
-        .catch(() => {});
-      await cleanupAndFinalize('failed', errMsg);
-      res.end();
+    try {
+      await this.saveAgentLog(
+        state.jobId,
+        state.pluginId,
+        state.pipeline,
+        state.startTime,
+        state.finalStatus,
+        state.timeline,
+        state.finalTokenUsage,
+        state.finalError,
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Lỗi lưu DB Log cho Job [${state.jobId}]: ${msg}`,
+      );
     }
   }
 
