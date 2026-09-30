@@ -33,9 +33,7 @@ export const SpeakingQuizState = Annotation.Root({
     reducer: (_, y) => y,
     default: () => [],
   }),
-  level: Annotation<'B1' | 'B2' | 'C1'>({
-    default: () => 'B2',
-  }),
+  level: Annotation<'B1' | 'B2' | 'C1'>(),
 
   // LLM Outputs (Node 2 & Node 3)
   generatedQuestion: Annotation<string | undefined>(),
@@ -45,9 +43,7 @@ export const SpeakingQuizState = Annotation.Root({
 
   // Execution result & tokens (Node 4)
   persistedId: Annotation<string | undefined>(),
-  error: Annotation<string | null>({
-    default: () => null,
-  }),
+  error: Annotation<string | null>(),
   tokenUsage: Annotation<{ promptTokens: number; completionTokens: number; totalTokens: number }>({
     reducer: (prev, curr) => ({
       promptTokens: (prev?.promptTokens || 0) + (curr?.promptTokens || 0),
