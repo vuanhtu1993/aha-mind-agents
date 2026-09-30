@@ -8,6 +8,7 @@ import {
 } from './database.constants';
 
 import { Storybook, StorybookSchema } from './schemas/storybook.schema';
+import { SpeakingQuestion, SpeakingQuestionSchema } from './schemas/speaking-question.schema';
 import { AgentExecLog, AgentExecLogSchema } from './schemas/agent-log.schema';
 import { AgentConfig, AgentConfigSchema } from './schemas/agent-config.schema';
 
@@ -49,7 +50,10 @@ import { AgentConfig, AgentConfigSchema } from './schemas/agent-config.schema';
 
     // 3. Đăng ký các Models vào đúng Connection
     MongooseModule.forFeature(
-      [{ name: Storybook.name, schema: StorybookSchema }],
+      [
+        { name: Storybook.name, schema: StorybookSchema },
+        { name: SpeakingQuestion.name, schema: SpeakingQuestionSchema },
+      ],
       AHA_TOOLS_CONNECTION,
     ),
     MongooseModule.forFeature(
