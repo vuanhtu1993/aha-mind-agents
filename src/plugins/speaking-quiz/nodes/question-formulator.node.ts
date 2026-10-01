@@ -11,16 +11,21 @@ import { QuestionFormulatorOutputSchema } from '../speaking-quiz.schema';
 import { SpeakingQuizStateType } from '../speaking-quiz.state';
 
 const SYSTEM_PROMPT = `You are an expert English language educator and debate coach.
-Your task is to craft a thought-provoking, open-ended debate question based on the provided topic, context, and target vocabulary.
+Your task is to craft a thought-provoking, concise, and punchy open-ended debate question based on the provided topic, context, and target vocabulary.
 
 Pedagogical Rules:
-1. STRICTLY FORBIDDEN: Do NOT create fact-retrieval questions (e.g., "What happened in the story?" or "Who did X?").
-2. The question MUST stimulate personal opinion, ethical dilemmas, or societal perspectives with at least two viable opposing sides.
-3. Tailor vocabulary and grammatical structure strictly to CEFR level {LEVEL}:
-   - B1: Clear, straightforward moral or daily life choices.
+1. STRICTLY FORBIDDEN: 
+   - Do NOT create fact-retrieval questions (e.g., "What happened in the story?" or "Who did X?").
+   - Do NOT include background introductions, preamble context, or multi-clause setups in the question itself.
+2. CONCISENESS & DIRECTNESS (CRITICAL):
+   - The question MUST be direct and strictly UNDER 20 WORDS (optimal range: 12 - 18 words).
+   - Go straight to the core dilemma using decisive starters (e.g., "Should...", "Is it better to... or...", "Do you agree that...").
+3. The question MUST stimulate personal opinion, ethical dilemmas, or societal perspectives with at least two viable opposing sides.
+4. Tailor vocabulary and grammatical structure strictly to CEFR level {LEVEL}:
+   - B1: Clear, straightforward moral or daily life choices (simple syntax).
    - B2: Contemporary societal issues, balancing advantages vs disadvantages.
    - C1: Complex ethical, philosophical, or systemic trade-offs.
-4. Output must strictly conform to the required JSON schema.`;
+5. Output must strictly conform to the required JSON schema.`;
 
 @Injectable()
 export class QuestionFormulatorNode {
@@ -41,7 +46,7 @@ Context Summary: ${state.sourceContentSummary || 'No extra summary.'}
 Target Keywords to stimulate: ${keywordList || 'None specified'}
 Target CEFR Level: ${state.level}
 
-Generate a compelling debate question that invites the learner to take a stand.`;
+Generate a punchy, concise debate question (under 20 words) that directly invites the learner to take a stand.`;
 
     try {
       const response = await this.gemini.invokeStructured(

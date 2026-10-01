@@ -179,13 +179,13 @@ export class StoryShadowingPlugin implements AgentPlugin {
 
       const subscription = stream$.subscribe({
         next: (event) => {
-          subscriber.next(event);
-          // Nếu event là done, tiến hành lưu vào DB
+          // Nếu event là done, gán ID và tiến hành lưu vào DB
           if (event.status === 'done' && event.payload) {
-            this.saveToDatabase(pipeline, input, event.payload, context).catch(err => {
-              context.log('❌ Lỗi khi lưu vào Database', err);
-            });
+            const storyId = this.prepareAndSaveToDatabase(pipeline, input, event.payload, context);
+            event.payload.storyId = storyId;
+            event.payload.id = storyId;
           }
+          subscriber.next(event);
         },
         error: (err) => subscriber.error(err),
         complete: () => subscriber.complete(),
@@ -195,7 +195,7 @@ export class StoryShadowingPlugin implements AgentPlugin {
     });
   }
 
-  private async saveToDatabase(pipeline: string, input: any, finalState: any, context: ExecutionContext) {
+  private prepareAndSaveToDatabase(pipeline: string, input: any, finalState: any, context: ExecutionContext): string {
     context.log('Đang lưu bài học vào CSDL Storybooks...');
     
     // Tạo originalText cho youtube nếu không có rawText
@@ -208,7 +208,7 @@ export class StoryShadowingPlugin implements AgentPlugin {
     }
 
     const newStory = new this.storybookModel({
-      title: pipeline === 'youtube' ? finalState.youtubeTitle : 'Bài luyện tập Text',
+      title: pipeline === 'youtube' ? (finalState.youtubeTitle || 'Bài luyện tập YouTube') : 'Bài luyện tập Text',
       thumbnail: pipeline === 'youtube' && finalState.youtubeVideoId ? `https://img.youtube.com/vi/${finalState.youtubeVideoId}/hqdefault.jpg` : undefined,
       originalText: originalText,
       youtubeVideoId: finalState.youtubeVideoId,
@@ -220,7 +220,11 @@ export class StoryShadowingPlugin implements AgentPlugin {
       sourceType: pipeline,
     });
     
-    const saved = await newStory.save();
-    context.log(`✅ Đã lưu bài học thành công. ID: ${saved._id}`);
+    const storyId = newStory._id.toString();
+    newStory.save()
+      .then(saved => context.log(`✅ Đã lưu bài học thành công. ID: ${saved._id}`))
+      .catch(err => context.log('❌ Lỗi khi lưu vào Database', err));
+
+    return storyId;
   }
 }
