@@ -23,7 +23,7 @@ export class SpeakingQuizService {
     private readonly queue: Queue,
     @InjectModel(SpeakingQuestion.name, AHA_TOOLS_CONNECTION)
     private readonly questionModel: Model<SpeakingQuestion>,
-  ) {}
+  ) { }
 
   public async createJob(dto: CreateSpeakingQuizJobDto) {
     // 1. Kiểm tra Idempotency nếu đã có câu hỏi cho storybookId
@@ -70,6 +70,39 @@ export class SpeakingQuizService {
     };
   }
 
+  public async getQuestions(filter?: { storybookId?: string; level?: string }) {
+    const query: Record<string, any> = { status: 'active' };
+
+    if (filter?.storybookId) {
+      if (!Types.ObjectId.isValid(filter.storybookId)) {
+        return { total: 0, questions: [] };
+      }
+      query.storybookId = new Types.ObjectId(filter.storybookId);
+    }
+
+    if (filter?.level) {
+      query.level = filter.level;
+    }
+
+    const docs = await this.questionModel
+      .find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return {
+      total: docs.length,
+      questions: docs.map((doc: any) => ({
+        id: doc._id.toString(),
+        storybookId: doc.storybookId ? doc.storybookId.toString() : undefined,
+        topic: doc.topic,
+        question: doc.question,
+        level: doc.level,
+        targetKeywords: doc.targetKeywords,
+        prepScaffold: doc.prepScaffold,
+      })),
+    };
+  }
+
   public async getQuestionById(id: string) {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`ID câu hỏi không hợp lệ: ${id}`);
@@ -90,27 +123,7 @@ export class SpeakingQuizService {
   }
 
   public async getQuestionsByStorybook(storybookId: string) {
-    if (!Types.ObjectId.isValid(storybookId)) {
-      return { total: 0, questions: [] };
-    }
-
-    const docs = await this.questionModel
-      .find({ storybookId: new Types.ObjectId(storybookId), status: 'active' })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return {
-      total: docs.length,
-      questions: docs.map((doc: any) => ({
-        id: doc._id.toString(),
-        storybookId: doc.storybookId ? doc.storybookId.toString() : undefined,
-        topic: doc.topic,
-        question: doc.question,
-        level: doc.level,
-        targetKeywords: doc.targetKeywords,
-        prepScaffold: doc.prepScaffold,
-      })),
-    };
+    return this.getQuestions({ storybookId });
   }
 
   public async getJob(jobId: string) {

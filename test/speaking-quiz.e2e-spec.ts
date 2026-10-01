@@ -70,4 +70,13 @@ describe('SpeakingQuizModule (E2E)', () => {
     expect(response.body.total).toBeDefined();
     expect(Array.isArray(response.body.questions)).toBeTruthy();
   });
+
+  it('GET /api/agents/speaking-quiz/questions - should return questions filtered by level or without storybookId', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/agents/speaking-quiz/questions?level=B2')
+      .expect(200);
+
+    expect(response.body.total).toBeDefined();
+    expect(Array.isArray(response.body.questions)).toBeTruthy();
+  });
 });

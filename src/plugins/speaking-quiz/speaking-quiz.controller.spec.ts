@@ -16,7 +16,7 @@ describe('SpeakingQuizController', () => {
         createdAt: '2026-09-30T16:40:00.000Z',
       }),
       getQuestionById: jest.fn().mockResolvedValue({ id: 'q123', topic: 'T1' } as any),
-      getQuestionsByStorybook: jest.fn().mockResolvedValue({ total: 1, questions: [] }),
+      getQuestions: jest.fn().mockResolvedValue({ total: 1, questions: [{ id: 'q123' }] }),
     };
     mockPubSub = {
       events$: jest.fn() as any,
@@ -40,5 +40,14 @@ describe('SpeakingQuizController', () => {
   it('should get question by id', async () => {
     const result = await controller.getQuestionById('q123');
     expect(result.id).toBe('q123');
+  });
+
+  it('should get questions with optional filters', async () => {
+    const result = await controller.getQuestions('679c1a2b3c4d5e6f7a8b9c0d', 'B2');
+    expect(result.total).toBe(1);
+    expect(mockService.getQuestions).toHaveBeenCalledWith({
+      storybookId: '679c1a2b3c4d5e6f7a8b9c0d',
+      level: 'B2',
+    });
   });
 });

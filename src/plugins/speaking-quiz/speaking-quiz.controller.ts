@@ -31,7 +31,7 @@ export class SpeakingQuizController {
   constructor(
     private readonly speakingQuizService: SpeakingQuizService,
     private readonly redisPubSub: RedisPubSubService,
-  ) {}
+  ) { }
 
   @Post('jobs')
   @ApiOperation({ summary: 'Kích hoạt Job sinh câu hỏi luyện nói PREP (Bất đồng bộ)' })
@@ -96,9 +96,13 @@ export class SpeakingQuizController {
   }
 
   @Get('questions')
-  @ApiOperation({ summary: 'Liệt kê danh sách câu hỏi theo Storybook' })
-  @ApiQuery({ name: 'storybookId', description: 'ID của bài học Storybook', required: true })
-  async getQuestionsByStorybook(@Query('storybookId') storybookId: string) {
-    return this.speakingQuizService.getQuestionsByStorybook(storybookId);
+  @ApiOperation({ summary: 'Truy vấn danh sách câu hỏi Speaking Quiz (hỗ trợ lọc theo Storybook hoặc xem tất cả)' })
+  @ApiQuery({ name: 'storybookId', description: 'ID của bài học Storybook (không bắt buộc)', required: false })
+  @ApiQuery({ name: 'level', description: 'Lọc theo cấp độ CEFR (B1, B2, C1)', required: false })
+  async getQuestions(
+    @Query('storybookId') storybookId?: string,
+    @Query('level') level?: string,
+  ) {
+    return this.speakingQuizService.getQuestions({ storybookId, level });
   }
 }

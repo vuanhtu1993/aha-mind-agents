@@ -68,7 +68,7 @@ export class SpeakingQuizPlugin implements AgentPlugin {
     ],
   };
 
-  constructor(private readonly pipelineService: SpeakingQuizPipelineService) {}
+  constructor(private readonly pipelineService: SpeakingQuizPipelineService) { }
 
   public async validateInput(pipeline: string, input: any): Promise<any> {
     if (pipeline === 'generate') {

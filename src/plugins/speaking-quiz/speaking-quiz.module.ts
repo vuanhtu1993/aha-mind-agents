@@ -52,7 +52,7 @@ export class SpeakingQuizModule implements OnModuleInit {
   constructor(
     private readonly pluginRegistry: PluginRegistryService,
     private readonly speakingQuizPlugin: SpeakingQuizPlugin,
-  ) {}
+  ) { }
 
   onModuleInit() {
     this.pluginRegistry.register(this.speakingQuizPlugin);
