@@ -37,18 +37,19 @@ export const QuestionFormulatorOutputSchema = z.object({
   question: z.string().min(10, 'Câu hỏi tranh luận phải rõ ràng và chi tiết'),
 });
 
-const StageScaffoldSchema = z.object({
-  title: z.string().min(1),
-  signposts: z.array(z.string().min(1)).min(2, 'Cần tối thiểu 2 cụm từ nối (signposts)'),
-  hint: z.string().min(5, 'Gợi ý giàn giáo phải cụ thể'),
-  modelAnswer: z.string().min(10, 'Câu mẫu phải có nội dung hoàn chỉnh'),
-});
+const createStageSchema = (stageName: string) =>
+  z.object({
+    title: z.string().min(1).describe(`Title for ${stageName}`),
+    signposts: z.array(z.string().min(1)).min(2, 'Cần tối thiểu 2 cụm từ nối (signposts)'),
+    hint: z.string().min(5, 'Gợi ý giàn giáo phải cụ thể'),
+    modelAnswer: z.string().min(10, 'Câu mẫu phải có nội dung hoàn chỉnh'),
+  });
 
 export const PrepSynthesizerOutputSchema = z.object({
-  point: StageScaffoldSchema,
-  reason: StageScaffoldSchema,
-  example: StageScaffoldSchema,
-  conclusion: StageScaffoldSchema,
+  point: createStageSchema('point'),
+  reason: createStageSchema('reason'),
+  example: createStageSchema('example'),
+  conclusion: createStageSchema('conclusion'),
 });
 
 export type StorybookSpeakingInput = z.infer<typeof StorybookSpeakingInputSchema>;

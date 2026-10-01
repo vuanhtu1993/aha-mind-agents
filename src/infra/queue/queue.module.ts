@@ -26,8 +26,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
             connection: {
               host: parsed.hostname || 'localhost',
               port: parseInt(parsed.port, 10) || 6379,
-              username: parsed.username || undefined,
-              password: parsed.password || undefined,
+              username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
+              password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+              tls: parsed.protocol === 'rediss:' ? {} : undefined,
               maxRetriesPerRequest: null,
             },
           };
