@@ -18,7 +18,16 @@ import { YoutubePipelineService } from './pipelines/youtube.pipeline';
 import { CreateStoryShadowingJobDto } from './dto/create-story-shadowing-job.dto';
 import { ExecutionContext } from '../../core/plugin.interface';
 
-@Processor('story-shadowing-queue')
+@Processor('story-shadowing-queue', {
+  // 1. Cho phép AI chạy tối đa 5 phút
+  lockDuration: 600000,
+
+  // 2. Tần suất kiểm tra worker còn sống không (mỗi 1 phút)
+  stalledInterval: 60000,
+
+  // 3. Chỉ cho phép retry khi bị stalled tối đa 1-2 lần để tránh vòng lặp vô tận (Infinite loop)
+  maxStalledCount: 2,
+})
 export class StoryShadowingWorker extends WorkerHost {
   private readonly logger = new Logger(StoryShadowingWorker.name);
 
@@ -55,13 +64,13 @@ export class StoryShadowingWorker extends WorkerHost {
       const stream$ =
         dto.pipeline === 'text'
           ? this.textPipeline.execute(
-              { text: dto.text!, voice: dto.voice || 'FEMALE' },
-              context,
-            )
+            { text: dto.text!, voice: dto.voice || 'FEMALE' },
+            context,
+          )
           : this.youtubePipeline.execute(
-              { youtubeUrl: dto.youtubeUrl! },
-              context,
-            );
+            { youtubeUrl: dto.youtubeUrl! },
+            context,
+          );
 
       let finalState: any = null;
 
