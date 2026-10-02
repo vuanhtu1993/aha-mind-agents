@@ -1,18 +1,33 @@
+import 'dotenv/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { getQueueToken } from '@nestjs/bullmq';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
+  const mockQueue = {
+    opts: {
+      connection: {
+        host: '127.0.0.1',
+        port: 6379,
+        lazyConnect: true,
+      },
+    },
+    add: jest.fn().mockResolvedValue({ id: 'job-mock-123' }),
+    getJob: jest.fn().mockResolvedValue(null),
+  };
 
   beforeAll(async () => {
-    // Provide minimal mock environment for test
-    process.env.MONGODB_URI = 'mongodb://localhost:27017/test-db';
-
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(getQueueToken('speaking-quiz-queue'))
+      .useValue(mockQueue)
+      .overrideProvider(getQueueToken('story-shadowing-queue'))
+      .useValue(mockQueue)
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
@@ -20,7 +35,9 @@ describe('AppController (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('/api/health (GET) should return 200 and ok status', () => {

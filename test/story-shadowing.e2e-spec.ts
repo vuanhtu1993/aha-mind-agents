@@ -5,7 +5,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 
-describe('SpeakingQuizModule (E2E)', () => {
+describe('StoryShadowingModule (E2E)', () => {
   let app: INestApplication;
   const mockQueue = {
     opts: {
@@ -15,7 +15,7 @@ describe('SpeakingQuizModule (E2E)', () => {
         lazyConnect: true,
       },
     },
-    add: jest.fn().mockResolvedValue({ id: 'job-sq-e2e-123' }),
+    add: jest.fn().mockResolvedValue({ id: 'job-ss-e2e-123' }),
     getJob: jest.fn().mockResolvedValue(null),
   };
 
@@ -23,9 +23,9 @@ describe('SpeakingQuizModule (E2E)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(getQueueToken('speaking-quiz-queue'))
-      .useValue(mockQueue)
       .overrideProvider(getQueueToken('story-shadowing-queue'))
+      .useValue(mockQueue)
+      .overrideProvider(getQueueToken('speaking-quiz-queue'))
       .useValue(mockQueue)
       .compile();
 
@@ -41,44 +41,50 @@ describe('SpeakingQuizModule (E2E)', () => {
     }
   }, 25000);
 
-  it('GET /api/v1/agents - should list speaking-quiz in registered agents', async () => {
+  it('GET /api/v1/agents - should list story-shadowing in registered agents', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/agents')
       .expect(200);
 
     const pluginIds = response.body.map((p: any) => p.id);
-    expect(pluginIds).toContain('speaking-quiz');
+    expect(pluginIds).toContain('story-shadowing');
   });
 
-  it('POST /api/agents/speaking-quiz/jobs - should accept job and return 202', async () => {
+  it('POST /api/agents/story-shadowing/jobs - should accept text job and return 202', async () => {
     const response = await request(app.getHttpServer())
-      .post('/api/agents/speaking-quiz/jobs')
+      .post('/api/agents/story-shadowing/jobs')
       .send({
-        customTopic: 'Artificial Intelligence and Human Creativity',
-        level: 'B2',
+        pipeline: 'text',
+        text: 'Habits are the compound interest of self-improvement.',
+        voice: 'FEMALE',
       })
       .expect(202);
 
     expect(response.body.status).toBe('queued');
     expect(response.body.jobId).toBeDefined();
-    expect(response.body.sseUrl).toContain('/api/agents/speaking-quiz/jobs/');
+    expect(response.body.sseUrl).toContain('/api/agents/story-shadowing/jobs/');
   });
 
-  it('GET /api/agents/speaking-quiz/questions - should return array for storybook queries', async () => {
+  it('POST /api/agents/story-shadowing/jobs - should accept youtube job and return 202', async () => {
     const response = await request(app.getHttpServer())
-      .get('/api/agents/speaking-quiz/questions?storybookId=679c1a2b3c4d5e6f7a8b9c0d')
+      .post('/api/agents/story-shadowing/jobs')
+      .send({
+        pipeline: 'youtube',
+        youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      })
+      .expect(202);
+
+    expect(response.body.status).toBe('queued');
+    expect(response.body.jobId).toBeDefined();
+    expect(response.body.sseUrl).toContain('/api/agents/story-shadowing/jobs/');
+  });
+
+  it('GET /api/agents/story-shadowing/stories - should return array of stories', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/agents/story-shadowing/stories')
       .expect(200);
 
     expect(response.body.total).toBeDefined();
-    expect(Array.isArray(response.body.questions)).toBeTruthy();
-  });
-
-  it('GET /api/agents/speaking-quiz/questions - should return questions filtered by level or without storybookId', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/api/agents/speaking-quiz/questions?level=B2')
-      .expect(200);
-
-    expect(response.body.total).toBeDefined();
-    expect(Array.isArray(response.body.questions)).toBeTruthy();
+    expect(Array.isArray(response.body.stories)).toBeTruthy();
   });
 });

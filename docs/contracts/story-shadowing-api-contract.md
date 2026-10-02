@@ -1,6 +1,6 @@
 # Story Shadowing Agent — API Integration Contract (aha-tools ⟷ aha-mind-agents)
 
-> **Document Version:** 1.1.0  
+> **Document Version:** 2.0.0 (Asynchronous BullMQ + Redis Pub/Sub + GET SSE Architecture)  
 > **Status:** Active / Production Ready  
 > **Target Audience:** Frontend/Backend Engineers tại `aha-tools` và `aha-mind-agents`  
 > **Base URL (Local):** `http://localhost:3001/api`  
@@ -13,212 +13,157 @@
 
 ### 1.1. Khái niệm cốt lõi (Definition Anatomy)
 
-> **Story Shadowing Agent (Tác nhân Luyện Nói Phản Xạ qua Câu chuyện)** là một hệ thống Multi-Agent Pipeline tự động hóa, chuyển đổi văn bản thô (Raw Text) hoặc nội dung video đa phương tiện (YouTube Video) thành bài tập luyện phát âm chuẩn hóa theo phương pháp **Speech Shadowing**. Hệ thống kết hợp phân tích ngữ âm học (Phonetic Alignment với IPA), tổng hợp giọng nói tự nhiên (Text-to-Speech), và bóc tách từ vựng chuyên sâu (Vocabulary Extraction & Enrichment) nhằm tối ưu hóa nhịp điệu phát âm và vốn từ thực chiến cho người học.
+> **Story Shadowing Agent (Tác nhân Luyện Nói Phản Xạ qua Câu chuyện)** là một hệ thống Multi-Agent Pipeline tự động hóa, chuyển đổi văn bản thô (*Raw Text*) hoặc nội dung video đa phương tiện (*YouTube Video*) thành bài tập luyện phát âm chuẩn hóa theo phương pháp **Speech Shadowing**. Hệ thống kết hợp phân tích ngữ âm học (*Phonetic Alignment* với ký tự IPA), tổng hợp giọng nói tự nhiên (*Text-to-Speech*), và bóc tách từ vựng chuyên sâu (*Vocabulary Extraction & Enrichment*) nhằm tối ưu hóa nhịp điệu phát âm và vốn từ thực chiến cho người học.
 
 Dưới góc nhìn sư phạm và kỹ thuật, khái niệm trên được cấu thành từ 4 trụ cột công nghệ then chốt:
 
 1. **Speech Shadowing (Kỹ thuật Nói bóng):** Kỹ thuật rèn luyện phản xạ phát âm chuẩn bằng cách lắng nghe giọng người bản ngữ và lặp lại gần như đồng thời (với độ trễ chỉ từ **0.2 – 0.5 giây**). Cơ chế này ép não bộ tiếp thu trực tiếp ngữ điệu (*intonation*), trọng âm câu (*sentence stress*) và nối âm (*connected speech*) trong ngữ cảnh sống động thay vì học ngữ pháp thụ động.
 2. **IPA Phonetic Alignment (Căn chỉnh phiên âm IPA từng từ):** Mỗi câu hoàn chỉnh được phân giải thành từng mẩu từ vựng đi kèm phiên âm chuẩn quốc tế (**IPA - International Phonetic Alphabet**). Phía giao diện học viên (`aha-tools`), dữ liệu này kết hợp cùng mốc thời gian để kích hoạt tính năng **Word-by-word Highlighting**, giúp người học nhận biết tức thì cách phát âm chính xác của từng âm tiết khó khi âm thanh vang lên.
-3. **Multi-Node Agent Pipeline (Quy trình Tác nhân Đa chặng):** Thay vì sử dụng một câu lệnh Prompt khổng lồ (monolithic prompt) dễ gây quá tải token và ảo giác (hallucination), quy trình được tổ chức thành đồ thị trạng thái **LangGraph StateGraph** với các Node tác nhân chuyên biệt:
-   - `sentenceSplitter` / `youtubeFetcher`: Thu nhận dữ liệu nguồn và phân tách cấu trúc.
-   - `youtubeConsolidator`: Gộp mẩu phụ đề rời rạc thành câu ngữ pháp hoàn chỉnh, đồng bộ mili-giây.
-   - `ttsGenerator`: Tổng hợp âm thanh giọng đọc chuẩn Studio (Google Cloud TTS / ElevenLabs).
-   - `keywordIdentifier`: Nhận diện thành ngữ (idioms), cụm động từ (phrasal verbs) và từ khó theo CEFR.
-   - `keywordEnricher`: Cung cấp giải nghĩa ngữ cảnh tiếng Việt, họ từ vựng (*word family*) và cụm từ cố định (*collocations*).
-4. **Dual Database Shared Persistence Model (Mô hình CSDL Chia sẻ Trực tiếp):** `aha-mind-agents` và `aha-tools` chia sẻ chung kết nối CSDL MongoDB (`AHA_TOOLS_CONNECTION`). Khi tác vụ hoàn tất, Agent Gateway ghi trực tiếp bài học vào collection `storybooks`, cho phép `aha-tools` truy xuất tức thì mà không cần lớp REST trung gian để đồng bộ dữ liệu.
+3. **Asynchronous Request-Reply Pattern (Mô hình Hàng đợi Bất đồng bộ Phân tán):** Thay vì giữ kết nối HTTP chờ đợi kéo dài (dễ gây lỗi timeout 504 khi xử lý video YouTube dài hoặc sinh TTS hàng chục câu), hệ thống tách biệt thành 2 pha độc lập:
+   - **Pha 1 (Enqueuing):** Client gửi yêu cầu tạo Job qua `POST /api/agents/story-shadowing/jobs` và nhận ngay mã `202 Accepted` kèm `jobId` và `sseUrl` (hoặc trả ngay bài có sẵn nếu trúng Idempotency).
+   - **Pha 2 (Decoupled Progress Stream):** Worker nền (`StoryShadowingWorker`) kéo Job từ hàng đợi `story-shadowing-queue`, chạy LangGraph StateGraph và truyền phát sự kiện tiến độ qua **Redis Pub/Sub**. Client mở kết nối chuẩn `new EventSource(sseUrl)` qua giao thức GET để theo dõi thanh tiến trình.
+4. **Idempotency (Tính bất biến theo ngữ cảnh):** Khi `aha-tools` gửi yêu cầu tạo bài học cho cùng một video YouTube (`youtubeUrl`), hệ thống tự động bóc tách `videoId`, kiểm tra CSDL MongoDB (`storybooks`). Nếu đã có bài học từ trước và `forceRegenerate === false`, hệ thống trả về kết quả lập tức trong **< 50ms**, tiết kiệm 100% token LLM và tài nguyên GPU/TTS.
 
 ---
 
-### 1.2. Phân tích nguyên nhân gốc rễ & Sự đánh đổi (Root Cause Analysis & Trade-offs)
-
-#### Root Cause Analysis (Lý do kiến trúc ra đời)
-Trước đây, module Story Shadowing được tích hợp nội bộ (*in-process*) trực tiếp bên trong ứng dụng Next.js của `aha-tools`. Khi đưa vào vận hành thực tế, kiến trúc này bộc lộ 3 điểm nghẽn nghiêm trọng:
-1. **Event Loop Starvation & Memory Spikes:** Việc xử lý chuyển đổi văn bản sang âm thanh (TTS Base64) cho các bài học 20 – 50 câu tiêu tốn lượng lớn tài nguyên CPU và bộ nhớ đệm, làm nghẽn Event Loop của server Next.js khiến trải nghiệm duyệt web của người dùng khác bị gián đoạn.
-2. **Serverless Execution Timeout:** Trên môi trường Edge/Serverless (như Vercel), giới hạn thời gian phản hồi (10s – 60s) thường xuyên bị vi phạm khi kéo phụ đề YouTube dài và gọi các chuỗi LLM tuần tự.
-3. **Mất dấu vết tiến trình (Observability Loss):** Hệ thống nguyên khối không cho phép theo dõi chi tiết độ trễ của từng Node, không đo lường được lượng token tiêu thụ và không tái cấu trúc lại được khi có lỗi xảy ra giữa chặng.
-
-Việc chuyển dịch module này sang **`aha-mind-agents`** với tư cách là một Agent Gateway độc lập giải quyết trọn vẹn các thách thức trên, cung cấp luồng Server-Sent Events (SSE) thời gian thực và quản lý tài nguyên tập trung.
-
-#### Trade-offs (Đánh đổi giải pháp)
-
-| Giải pháp công nghệ | Ưu điểm (Pros) | Đánh đổi / Nhược điểm (Cons) | Biện pháp giải quyết |
-| :--- | :--- | :--- | :--- |
-| **HTTP POST + SSE Stream** thay vì HTTP Polling | Trực quan hóa tiến độ theo thời gian thực (0% $\rightarrow$ 100%), phản hồi tức thì độ trễ < 10ms giữa các node. | Kết nối HTTP dạng giữ lâu (Long-lived Connection), dễ bị ngắt kết nối bởi Proxy timeout hoặc CDN buffer. | Bổ sung cơ chế Heartbeat ping mỗi **15 giây** và cấu hình header `X-Accel-Buffering: no`. |
-| **Ghi trực tiếp vào MongoDB `storybooks`** | `aha-tools` có thể mở bài đọc tức thì sau khi luồng SSE báo `done`, không tốn thêm roundtrip API đồng bộ. | Đòi hỏi 2 repository phải thống nhất chặt chẽ về Schema của `Storybook`. | Sử dụng chung Zod validation và Interface TypeScript đồng bộ hóa qua hợp đồng này. |
-| **Phân tích Video YouTube từ Phụ đề (Transcripts)** thay vì Whisper Audio Processing | Tốc độ xử lý siêu nhanh (**5 – 15s** thay vì 2 – 5 phút), tiết kiệm 95% chi phí điện toán GPU/AI. | Phụ thuộc vào chất lượng Closed Captions (CC) sẵn có của video YouTube; không hoạt động với video tắt phụ đề. | Bắt lỗi sớm tại Node `youtubeFetcher`, trả về mã lỗi `422` thân thiện để người dùng chọn video khác. |
-
----
-
-### 1.3. Sơ đồ Luồng Tích hợp (Integration Sequence Diagrams)
-
-#### Sơ đồ 1: Luồng xử lý Văn bản thuần (Text Shadowing Pipeline)
+### 1.2. Sơ đồ Luồng Tích hợp (Integration Sequence Diagram)
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Learner as Học viên / Giáo viên
-    participant UI as aha-tools (Frontend / Web)
-    participant GW as aha-mind-agents (API Gateway)
-    participant StateGraph as LangGraph Text Engine
-    participant TTS as Google Cloud TTS Engine
+    participant UI as aha-tools (Web / App)
+    participant GW as Gateway Controller (/api/agents/story-shadowing)
+    participant Redis as Redis Queue & PubSub
+    participant Worker as StoryShadowing Worker (LangGraph)
     participant DB as MongoDB (Collection: storybooks)
 
-    Learner->>UI: Nhập văn bản bài học & chọn giọng đọc
-    UI->>GW: POST /api/v1/agents/story-shadowing/text/stream (Accept: text/event-stream)
-    GW-->>UI: 200 OK (Mở kết nối SSE Stream)
-    
-    GW->>StateGraph: Khởi chạy StateGraph với Input { text, voice }
-    StateGraph-->>GW-->>UI: SSE: { status: "init", message: "Khởi tạo Text Pipeline..." }
-
-    Note over StateGraph, GW: Chặng 1: Phân tách câu & Gán IPA (30%)
-    StateGraph->>StateGraph: Thực thi sentenceSplitter (LLM)
-    StateGraph-->>GW-->>UI: SSE: { stepId: "sentenceSplitter", status: "completed", progress: 30 }
-
-    par Chạy song song TTS & Bóc tách từ vựng
-        Note over StateGraph, TTS: Chặng 2: Tổng hợp giọng nói TTS (80%)
-        StateGraph->>TTS: Tạo âm thanh cho từng câu (Base64)
-        StateGraph-->>GW-->>UI: SSE: { stepId: "ttsGenerator", status: "completed", progress: 80 }
-    and
-        Note over StateGraph, GW: Chặng 3: Nhận diện từ vựng khó (50%)
-        StateGraph->>StateGraph: Thực thi keywordIdentifier (LLM)
-        StateGraph-->>GW-->>UI: SSE: { stepId: "keywordIdentifier", status: "completed", progress: 50 }
+    Note over UI, GW: Bước 1: Kích hoạt Job tạo bài học Shadowing
+    UI->>GW: POST /api/agents/story-shadowing/jobs { pipeline, text | youtubeUrl }
+    GW->>DB: Kiểm tra xem đã có bài học cho videoId chưa? (Idempotency)
+    alt Đã tồn tại & forceRegenerate = false
+        GW-->>UI: 202 Accepted { jobId: "existing-...", status: "completed", existingStoryId }
+        UI->>GW: GET /api/agents/story-shadowing/stories/:id
+        GW-->>UI: 200 OK (Dữ liệu bài học hoàn chỉnh)
+    else Chưa tồn tại hoặc forceRegenerate = true
+        GW->>Redis: Đẩy Job vào 'story-shadowing-queue'
+        GW-->>UI: 202 Accepted { jobId, status: "queued", sseUrl }
         
-        Note over StateGraph, GW: Chặng 4: Giải nghĩa chuyên sâu (95%)
-        StateGraph->>StateGraph: Thực thi keywordEnricher (LLM)
-        StateGraph-->>GW-->>UI: SSE: { stepId: "keywordEnricher", status: "completed", progress: 95 }
+        Note over UI, Redis: Bước 2: Lắng nghe tiến trình qua chuẩn GET EventSource
+        UI->>GW: GET /api/agents/story-shadowing/jobs/:jobId/progress (Accept: text/event-stream)
+        Worker->>Redis: Lấy Job ra thực thi (LangGraph StateGraph)
+        
+        Worker->>Redis: Publish Event: sentenceSplitter / youtubeFetcher (30%)
+        Redis-->>GW-->>UI: SSE Data: { progress: 30, stage: "sentenceSplitter" }
+        
+        Worker->>Redis: Publish Event: youtubeConsolidator / keywordIdentifier (50% - 75%)
+        Redis-->>GW-->>UI: SSE Data: { progress: 50, stage: "keywordIdentifier" }
+        
+        Worker->>Redis: Publish Event: ttsGenerator / keywordEnricher (80% - 95%)
+        Redis-->>GW-->>UI: SSE Data: { progress: 95, stage: "keywordEnricher" }
+        
+        Worker->>DB: Lưu Storybook { sentences, keywords, level, ... }
+        Worker->>Redis: Publish Event: completed (100%)
+        Redis-->>GW-->>UI: SSE Data: { status: "done", progress: 100, payload: { storyId } }
+        
+        Note over UI, DB: Bước 3: Lấy toàn bộ dữ liệu để người học bắt đầu Shadowing
+        UI->>GW: GET /api/agents/story-shadowing/stories/:storyId
+        GW-->>UI: 200 OK (Chi tiết bài học Storybook)
     end
-
-    Note over GW, DB: Chặng 5: Đóng gói bài học & Lưu trữ CSDL
-    GW->>DB: Lưu Storybook { title, sentences, keywords, level, ... }
-    DB-->>GW: Xác nhận lưu thành công (storyId)
-    
-    GW-->>UI: SSE: { status: "done", progress: 100, payload: { storyId, sentences, keywords } }
-    UI->>UI: Đóng SSE & Điều hướng sang /apps/story-shadowing/player/:storyId
-```
-
----
-
-#### Sơ đồ 2: Luồng xử lý Video YouTube (YouTube Shadowing Pipeline)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Learner as Học viên / Giáo viên
-    participant UI as aha-tools (Frontend / Web)
-    participant GW as aha-mind-agents (API Gateway)
-    participant YTGraph as LangGraph YouTube Engine
-    participant YouTube as YouTube Transcript API
-    participant DB as MongoDB (Collection: storybooks)
-
-    Learner->>UI: Dán đường dẫn YouTube (youtubeUrl)
-    UI->>GW: POST /api/v1/agents/story-shadowing/youtube/stream (Accept: text/event-stream)
-    GW-->>UI: 200 OK (Mở kết nối SSE Stream)
-    
-    GW->>YTGraph: Khởi chạy YouTube Engine với { youtubeUrl }
-    YTGraph-->>GW-->>UI: SSE: { status: "init", message: "Khởi tạo YouTube Pipeline..." }
-
-    Note over YTGraph, YouTube: Chặng 1: Tải phụ đề mốc thời gian (30%)
-    YTGraph->>YouTube: Lấy danh sách phụ đề (offset, duration, text)
-    YTGraph-->>GW-->>UI: SSE: { stepId: "youtubeFetcher", status: "completed", progress: 30 }
-
-    Note over YTGraph, GW: Chặng 2: Gộp câu hoàn chỉnh & Phiên âm IPA (50%)
-    YTGraph->>YTGraph: Thực thi youtubeConsolidator (startMs, endMs, IPA)
-    YTGraph-->>GW-->>UI: SSE: { stepId: "youtubeConsolidator", status: "completed", progress: 50 }
-
-    Note over YTGraph, GW: Chặng 3: Bóc tách từ vựng trọng tâm (75%)
-    YTGraph->>YTGraph: Thực thi keywordIdentifier (LLM)
-    YTGraph-->>GW-->>UI: SSE: { stepId: "keywordIdentifier", status: "completed", progress: 75 }
-
-    Note over YTGraph, GW: Chặng 4: Giải nghĩa ngữ cảnh tiếng Việt (95%)
-    YTGraph->>YTGraph: Thực thi keywordEnricher (LLM)
-    YTGraph-->>GW-->>UI: SSE: { stepId: "keywordEnricher", status: "completed", progress: 95 }
-
-    Note over GW, DB: Chặng 5: Đóng gói bài học YouTube & Lưu CSDL
-    GW->>DB: Lưu Storybook { sourceType: "youtube", youtubeVideoId, sentences, keywords }
-    DB-->>GW: Trả về storyId đã lưu
-    
-    GW-->>UI: SSE: { status: "done", progress: 100, payload: { storyId, youtubeVideoId, ... } }
-    UI->>UI: Đóng SSE & Mở bài học trực tiếp trên YouTube Player
 ```
 
 ---
 
 ## 2. Chi tiết Đặc tả Endpoint (API Endpoints Specification)
 
-### 2.1. Kích hoạt Pipeline Xử lý Văn bản thuần (Text Shadowing Stream)
+### 2.1. Kích hoạt Job tạo bài học Shadowing (Asynchronous Job Enqueue)
 
 * **HTTP Method:** `POST`
-* **Path:** `/api/v1/agents/story-shadowing/text/stream`
-* **Headers yêu cầu:**
-  * `Content-Type: application/json`
-  * `Accept: text/event-stream`
-* **Response Status Code:** `200 OK`
-* **Response Content-Type:** `text/event-stream; charset=utf-8`
+* **Path:** `/api/agents/story-shadowing/jobs`
+* **Headers:** `Content-Type: application/json`
+* **Status Code:** `202 Accepted`
 
 #### Request Body
 | Trường | Kiểu dữ liệu | Bắt buộc | Mặc định | Ý nghĩa & Quy tắc nghiệp vụ |
 | :--- | :--- | :---: | :---: | :--- |
-| `text` | `string` | **Có** | — | Đoạn văn bản tiếng Anh cần tạo bài tập. Độ dài từ **10 đến 10,000 ký tự**. |
-| `voice` | `string` | Không | `"FEMALE"` | Giọng đọc tổng hợp TTS (ví dụ: `"FEMALE"`, `"MALE"`, `"en-US-Journey-F"`). |
+| `pipeline` | `string` | **Có** | — | Chọn pipeline thực thi: `"text"` hoặc `"youtube"`. |
+| `text` | `string` | Bắt buộc nếu chọn `text` | `null` | Đoạn văn bản tiếng Anh cần tạo bài tập (độ dài 10 - 10,000 ký tự). |
+| `voice` | `string` | Không | `"FEMALE"` | Giọng đọc tổng hợp TTS (`"FEMALE"`, `"MALE"`, `"en-US-Journey-F"`). |
+| `youtubeUrl` | `string` | Bắt buộc nếu chọn `youtube` | `null` | Đường dẫn URL YouTube hợp lệ có phụ đề (Closed Captions). |
+| `forceRegenerate` | `boolean` | Không | `false` | Nếu `true`, ép hệ thống sinh lại bài học dù video đã từng được xử lý trong CSDL. |
 
-#### Request Example:
+#### Request Example (Text Pipeline):
 ```json
 {
-  "text": "Habits are the compound interest of self-improvement. The same way that money multiplies through compound interest, the effects of your habits multiply as you repeat them.",
+  "pipeline": "text",
+  "text": "Habits are the compound interest of self-improvement. Getting 1 percent better every day counts for a lot in the long run.",
   "voice": "FEMALE"
 }
 ```
 
-#### Bảng Tiến trình Các Chặng (Progress Lifecycle Stages):
-| Step ID (`stepId`) | Progress (%) | Tên chặng xử lý | Mô tả chi tiết |
-| :--- | :---: | :--- | :--- |
-| `init` | 0% | Khởi tạo Text Pipeline | Kiểm tra dữ liệu đầu vào và nạp cấu hình hệ thống. |
-| `sentenceSplitter` | 30% | Phân tách câu & IPA | LLM tách văn bản thành các câu tự nhiên, xác định độ khó CEFR (`easy`/`medium`/`hard`), gán phiên âm IPA từng từ. |
-| `keywordIdentifier`| 50% | Trích xuất từ vựng khó | LLM nhận diện từ vựng học thuật, thành ngữ (idioms), cụm động từ (phrasal verbs). |
-| `ttsGenerator` | 80% | Tổng hợp âm thanh TTS | Dịch vụ TTS chuyển hóa từng câu thành tệp âm thanh Base64 phục vụ luyện nghe lặp. |
-| `keywordEnricher` | 95% | Giải nghĩa từ vựng | LLM giải thích nghĩa theo ngữ cảnh tiếng Việt, bổ sung word family và collocations. |
-| `done` | 100% | Hoàn tất & Lưu CSDL | Hệ thống lưu bài học vào MongoDB, trả về `storyId` và toàn bộ dữ liệu cấu trúc. |
-
----
-
-### 2.2. Kích hoạt Pipeline Xử lý Video YouTube (YouTube Shadowing Stream)
-
-* **HTTP Method:** `POST`
-* **Path:** `/api/v1/agents/story-shadowing/youtube/stream`
-* **Headers yêu cầu:**
-  * `Content-Type: application/json`
-  * `Accept: text/event-stream`
-* **Response Status Code:** `200 OK`
-* **Response Content-Type:** `text/event-stream; charset=utf-8`
-
-#### Request Body
-| Trường | Kiểu dữ liệu | Bắt buộc | Mặc định | Ý nghĩa & Quy tắc nghiệp vụ |
-| :--- | :--- | :---: | :---: | :--- |
-| `youtubeUrl` | `string` | **Có** | — | Đường dẫn URL YouTube hợp lệ (hỗ trợ `youtube.com/watch?v=...`, `youtu.be/...`). Video bắt buộc phải có phụ đề (Closed Captions). |
-
-#### Request Example:
+#### Request Example (YouTube Pipeline):
 ```json
 {
-  "youtubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  "pipeline": "youtube",
+  "youtubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "forceRegenerate": false
 }
 ```
 
-#### Bảng Tiến trình Các Chặng (Progress Lifecycle Stages):
-| Step ID (`stepId`) | Progress (%) | Tên chặng xử lý | Mô tả chi tiết |
-| :--- | :---: | :--- | :--- |
-| `init` | 0% | Khởi tạo YouTube Pipeline | Kiểm tra định dạng link video và trích xuất `videoId`. |
-| `youtubeFetcher` | 30% | Tải phụ đề YouTube | Kéo dữ liệu phụ đề thô có gắn mốc thời gian (start, duration). |
-| `youtubeConsolidator` | 50% | Gộp câu & Phiên âm IPA | Gộp các mảnh phụ đề ngắt quãng thành câu hoàn chỉnh, tính toán chính xác mốc `startMs` và `endMs` cho video player. |
-| `keywordIdentifier`| 75% | Trích xuất từ vựng khó | Phân tích toàn bộ transcript đã gộp câu để lấy ra các cụm từ khó tiêu biểu. |
-| `keywordEnricher` | 95% | Giải nghĩa từ vựng | Bổ sung nghĩa tiếng Việt, cấp độ CEFR, họ từ vựng và cụm từ thông dụng. |
-| `done` | 100% | Hoàn tất & Lưu CSDL | Lưu bản ghi dạng `sourceType: "youtube"`, trả về `storyId` và video thumbnail. |
+#### Response Example 1: Job mới được xếp hàng đợi (Queueing)
+```json
+{
+  "jobId": "12",
+  "status": "queued",
+  "sseUrl": "/api/agents/story-shadowing/jobs/12/progress",
+  "createdAt": "2026-10-02T10:00:00.000Z"
+}
+```
+
+#### Response Example 2: Đã có sẵn bài học (Idempotent Hit — Trả kết quả ngay)
+```json
+{
+  "jobId": "existing-679c1a2b3c4d5e6f7a8b9c0d",
+  "status": "completed",
+  "existingStoryId": "679c1a2b3c4d5e6f7a8b9c0d",
+  "createdAt": "2026-10-01T08:15:30.000Z"
+}
+```
 
 ---
 
-### 2.3. Định dạng Luồng Dữ liệu Mẫu trên SSE Stream (Raw SSE Stream Examples)
+### 2.2. Lắng nghe tiến trình thời gian thực qua Server-Sent Events (GET SSE)
 
-Dưới đây là chuỗi bản tin thực tế truyền tải qua kết nối HTTP SSE từ máy chủ:
+* **HTTP Method:** `GET`
+* **Path:** `/api/agents/story-shadowing/jobs/:jobId/progress`
+* **Headers:** `Accept: text/event-stream`
+* **Response Content-Type:** `text/event-stream; charset=utf-8`
 
+> **Tương thích Trình duyệt:** Endpoint này sử dụng phương thức `HTTP GET`, cho phép ứng dụng Frontend `aha-tools` sử dụng trực tiếp Web API chuẩn của trình duyệt: `new EventSource(sseUrl)` mà không cần cài đặt thêm thư viện ngoài.
+
+#### Danh sách các Stage sự kiện theo Pipeline:
+
+##### Với Text Pipeline:
+| Stage (`stepId`) | Progress (%) | Mô tả trạng thái |
+| :--- | :---: | :--- |
+| `init` | 0% | Khởi tạo Text Pipeline và nạp cấu hình |
+| `sentenceSplitter` | 30% | Đã phân tách câu và gán phiên âm IPA từng từ |
+| `keywordIdentifier`| 50% | Đã trích xuất danh sách từ vựng khó theo CEFR |
+| `ttsGenerator` | 80% | Hoàn thành tổng hợp âm thanh giọng đọc TTS Base64 |
+| `keywordEnricher` | 95% | Hoàn thành giải nghĩa từ vựng, word family, collocations |
+| `completed` / `done` | 100% | Đã lưu bài học vào CSDL `storybooks` và trả về `storyId` |
+
+##### Với YouTube Pipeline:
+| Stage (`stepId`) | Progress (%) | Mô tả trạng thái |
+| :--- | :---: | :--- |
+| `init` | 0% | Khởi tạo YouTube Pipeline |
+| `youtubeFetcher` | 30% | Đã tải danh sách phụ đề mốc thời gian từ YouTube |
+| `youtubeConsolidator` | 50% | Đã gộp câu hoàn chỉnh, tính mốc `startMs`, `endMs` và phiên âm IPA |
+| `keywordIdentifier`| 75% | Đã bóc tách từ vựng khó từ toàn bộ transcript |
+| `keywordEnricher` | 95% | Hoàn thành giải nghĩa chuyên sâu ngữ cảnh |
+| `completed` / `done` | 100% | Đã lưu bài học vào CSDL và trả về `storyId` |
+
+#### Luồng dữ liệu mẫu trên kết nối SSE (Stream Payload):
 ```http
 HTTP/1.1 200 OK
 Content-Type: text/event-stream; charset=utf-8
@@ -226,44 +171,88 @@ Cache-Control: no-cache
 Connection: keep-alive
 X-Accel-Buffering: no
 
-data: {"status":"init","message":"Khởi tạo Text Pipeline..."}
+data: {"jobId":"12","stepId":"sentenceSplitter","status":"completed","progress":30,"message":"Đã phân tách câu và IPA"}
 
-data: {"stepId":"sentenceSplitter","status":"completed","progress":30,"message":"Đã phân tách câu và IPA"}
+data: {"jobId":"12","stepId":"keywordIdentifier","status":"completed","progress":50,"message":"Đã trích xuất từ vựng khó"}
 
-data: {"stepId":"keywordIdentifier","status":"completed","progress":50,"message":"Đã trích xuất từ vựng khó"}
+data: {"jobId":"12","stepId":"ttsGenerator","status":"completed","progress":80,"message":"Hoàn thành tổng hợp âm thanh TTS"}
 
-data: {"status":"running","message":"Heartbeat ping"}
+data: {"jobId":"12","stepId":"keywordEnricher","status":"completed","progress":95,"message":"Hoàn thành giải nghĩa từ vựng"}
 
-data: {"stepId":"ttsGenerator","status":"completed","progress":80,"message":"Hoàn thành tổng hợp âm thanh TTS"}
-
-data: {"stepId":"keywordEnricher","status":"completed","progress":95,"message":"Hoàn thành giải nghĩa từ vựng"}
-
-data: {"status":"done","progress":100,"message":"Hoàn thành toàn bộ Text Pipeline","payload":{"storyId":"679c1a2b3c4d5e6f7a8b9c0d","id":"679c1a2b3c4d5e6f7a8b9c0d","level":"medium","speakingRate":1.0,"sentences":[{"id":1,"text":"Habits are the compound interest of self-improvement.","audioBase64":"UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=","words":[{"word":"Habits","ipa":"/ˈhæb.ɪts/"},{"word":"compound","ipa":"/ˈkɒm.paʊnd/"}]}],"keywords":[{"word":"compound interest","explanation":"Lãi kép; sự tích lũy tăng trưởng theo cấp số nhân","level":"B2","collocations":[{"collocation":"earn compound interest","explanation":"Hưởng lãi kép"}]}]}}
+data: {"jobId":"12","status":"done","progress":100,"message":"Story shadowing lesson created and saved successfully","payload":{"storyId":"679c1a2b3c4d5e6f7a8b9c0d","id":"679c1a2b3c4d5e6f7a8b9c0d","title":"Bài luyện tập Text","level":"medium","sentenceCount":2}}
 ```
-
-> **Ghi chú xử lý cho Frontend:** Khi nhận event có `status === "done"`, Client lấy trường `payload.storyId` (hoặc `payload.id`) để đóng kết nối và thực hiện điều hướng `router.push('/apps/story-shadowing/player/' + payload.storyId)`.
 
 ---
 
-### 2.4. Tra cứu Danh mục Agent Plugins (Agent Discovery)
+### 2.3. Lấy dữ liệu chi tiết bài học Storybook theo ID
 
 * **HTTP Method:** `GET`
-* **Path:** `/api/v1/agents`
-* **Mục đích:** Cho phép `aha-tools` tự động truy vấn danh sách các pipeline đang hoạt động, các cấu hình mặc định (Prompts, Model, Temperature) của plugin `story-shadowing`.
-* **Response Example:**
-  ```json
-  [
+* **Path:** `/api/agents/story-shadowing/stories/:id`
+* **Response Status Code:** `200 OK`
+
+#### Response Example:
+```json
+{
+  "_id": "679c1a2b3c4d5e6f7a8b9c0d",
+  "title": "Habits and Self-Improvement",
+  "sourceType": "text",
+  "level": "medium",
+  "voice": "FEMALE",
+  "speakingRate": 1.0,
+  "originalText": "Habits are the compound interest of self-improvement.",
+  "sentences": [
     {
-      "id": "story-shadowing",
-      "displayName": "Story Shadowing Agent",
-      "description": "Tạo bài học tiếng Anh theo phương pháp Shadowing từ văn bản thuần hoặc video YouTube.",
-      "pipelines": [
-        { "id": "text", "displayName": "Xử lý Văn bản thuần" },
-        { "id": "youtube", "displayName": "Xử lý Video YouTube" }
+      "id": 1,
+      "text": "Habits are the compound interest of self-improvement.",
+      "audioBase64": "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
+      "words": [
+        { "word": "Habits", "ipa": "/ˈhæb.ɪts/" },
+        { "word": "compound", "ipa": "/ˈkɒm.paʊnd/" },
+        { "word": "interest", "ipa": "/ˈɪn.trəst/" }
       ]
     }
+  ],
+  "keywords": [
+    {
+      "word": "compound interest",
+      "explanation": "Lãi kép; sự tăng trưởng lũy kế theo thời gian",
+      "level": "B2",
+      "collocations": [
+        { "collocation": "earn compound interest", "explanation": "Hưởng lãi kép" }
+      ]
+    }
+  ],
+  "createdAt": "2026-10-02T10:05:00.000Z"
+}
+```
+
+---
+
+### 2.4. Truy vấn Danh sách Bài học (Flexible Filters)
+
+* **HTTP Method:** `GET`
+* **Path:** `/api/agents/story-shadowing/stories`
+* **Query Parameters:**
+  * `sourceType` *(optional, string)*: Lọc theo nguồn (`text` hoặc `youtube`).
+  * `level` *(optional, string)*: Lọc theo cấp độ CEFR (`easy`, `medium`, `hard`).
+* **Response Status Code:** `200 OK`
+
+#### Response Example:
+```json
+{
+  "total": 1,
+  "stories": [
+    {
+      "_id": "679c1a2b3c4d5e6f7a8b9c0d",
+      "title": "Habits and Self-Improvement",
+      "sourceType": "text",
+      "level": "medium",
+      "sentenceCount": 1,
+      "createdAt": "2026-10-02T10:05:00.000Z"
+    }
   ]
-  ```
+}
+```
 
 ---
 
@@ -274,22 +263,19 @@ Nhóm phát triển `aha-tools` có thể sao chép trực tiếp các Type defi
 ```typescript
 /**
  * @file story-shadowing.ts
- * @description Hợp đồng Type & Interface chuẩn cho module Story Shadowing
+ * @description Định nghĩa Type & Interface cho module Story Shadowing (Text & YouTube Pipelines)
+ * 
+ * Target Application: aha-tools (Next.js Frontend / PWA & Server Services)
+ * Synchronized with: aha-mind-agents (NestJS Agent Gateway)
  * 
  * Made by Anh Tu - Share to be share
  */
 
-/**
- * 1 từ kèm phiên âm chuẩn IPA (International Phonetic Alphabet)
- */
 export interface IWordItem {
   word: string;
   ipa: string;
 }
 
-/**
- * 1 câu hoàn chỉnh trong bài học Shadowing
- */
 export interface IStorybookSentence {
   id: number;
   text: string;
@@ -299,27 +285,18 @@ export interface IStorybookSentence {
   endMs?: number;       // Mốc kết thúc tính theo mili-giây (cho YouTube Video)
 }
 
-/**
- * Mục từ cùng họ từ loại (Word Family)
- */
 export interface IWordFamilyItem {
   word: string;
-  partOfSpeech?: string; // e.g. noun, verb, adjective, adverb
+  partOfSpeech?: string;
   ipa?: string;
   explanation: string;
 }
 
-/**
- * Cụm từ cố định tự nhiên (Collocation)
- */
 export interface ICollocationItem {
   collocation: string;
   explanation: string;
 }
 
-/**
- * Từ vựng trọng tâm được bóc tách và giải nghĩa ngữ cảnh
- */
 export interface IStorybookKeyword {
   word: string;
   ipa?: string;
@@ -330,9 +307,6 @@ export interface IStorybookKeyword {
   collocations?: ICollocationItem[];
 }
 
-/**
- * Thực thể bài học Storybook lưu trữ trong MongoDB (Collection: storybooks)
- */
 export interface IStorybook {
   _id: string;
   title: string;
@@ -353,52 +327,37 @@ export interface IStorybook {
   updatedAt?: string;
 }
 
-/**
- * Payload gửi lên để kích hoạt Text Shadowing Pipeline
- */
-export interface CreateTextShadowingRequest {
-  text: string;
+export interface CreateStoryShadowingJobRequest {
+  pipeline: "text" | "youtube";
+  text?: string;
   voice?: string;
+  youtubeUrl?: string;
+  forceRegenerate?: boolean;
 }
 
-/**
- * Payload gửi lên để kích hoạt YouTube Shadowing Pipeline
- */
-export interface CreateYoutubeShadowingRequest {
-  youtubeUrl: string;
+export interface CreateStoryShadowingJobResponse {
+  jobId: string;
+  status: "queued" | "completed";
+  sseUrl?: string;
+  existingStoryId?: string;
+  createdAt: string;
 }
 
-/**
- * Dữ liệu trả về trong Payload của sự kiện hoàn tất (status: "done")
- */
-export interface StoryShadowingDonePayload {
-  storyId: string;
-  id: string;
-  title?: string;
-  youtubeTitle?: string;
-  youtubeVideoId?: string;
-  level: "easy" | "medium" | "hard";
-  speakingRate: number;
-  sentences: IStorybookSentence[];
-  keywords: IStorybookKeyword[];
-  rawText?: string;
-  tokenUsage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-}
-
-/**
- * Sự kiện tiến trình thời gian thực nhận từ Server-Sent Events (SSE)
- */
 export interface StoryShadowingProgressEvent {
+  jobId?: string;
   status?: "init" | "running" | "completed" | "done" | "failed";
-  stepId?: "sentenceSplitter" | "ttsGenerator" | "keywordIdentifier" | "keywordEnricher" | "youtubeFetcher" | "youtubeConsolidator" | string;
+  stepId?: string;
   progress?: number;
   message?: string;
-  payload?: StoryShadowingDonePayload;
-  error?: string;
+  payload?: {
+    storyId?: string;
+    id?: string;
+    title?: string;
+    level?: string;
+    sentenceCount?: number;
+    sentences?: IStorybookSentence[];
+    keywords?: IStorybookKeyword[];
+  };
 }
 ```
 
@@ -406,147 +365,94 @@ export interface StoryShadowingProgressEvent {
 
 ## 4. Hướng dẫn Tích hợp Phía Client (Client Integration Guide & SDK Snippet)
 
-Vì các endpoint pipeline sử dụng phương thức **`HTTP POST`** kết hợp với luồng Server-Sent Events (`text/event-stream`), trình duyệt chuẩn không thể sử dụng trực tiếp đối tượng `new EventSource(url)` (vốn chỉ hỗ trợ `GET`).
-
-Phía `aha-tools` sử dụng hàm SDK mẫu sau (sử dụng Native `fetch` kết hợp `ReadableStream`) để gọi API và cập nhật thanh tiến trình:
+Nhờ kiến trúc Asynchronous Queue + GET SSE, phía `aha-tools` có thể sử dụng hàm SDK đồng nhất hoàn toàn với `speaking-quiz-client.ts`:
 
 ```typescript
 /**
  * @file story-shadowing-client.ts
- * @description Client SDK tích hợp aha-mind-agents cho ứng dụng aha-tools
+ * @description Client SDK tích hợp Story Shadowing Agent cho ứng dụng aha-tools
  * 
  * Made by Anh Tu - Share to be share
  */
 
 import {
-  CreateTextShadowingRequest,
-  CreateYoutubeShadowingRequest,
+  CreateStoryShadowingJobRequest,
+  CreateStoryShadowingJobResponse,
   StoryShadowingProgressEvent,
-  StoryShadowingDonePayload,
+  IStorybook,
 } from '@/lib/types/story-shadowing';
 
 const AGENTS_BASE_URL = process.env.NEXT_PUBLIC_AGENTS_API_URL || 'http://localhost:3001/api';
 
-export type ProgressCallback = (progress: number, message: string, stepId?: string) => void;
-
 /**
- * Đọc luồng SSE từ HTTP POST Request Stream
+ * Tạo bài học Shadowing qua Hàng đợi và theo dõi tiến độ qua SSE
  */
-async function streamAgentPipeline(
-  endpointUrl: string,
-  requestPayload: unknown,
-  onProgress?: ProgressCallback
-): Promise<StoryShadowingDonePayload> {
-  const response = await fetch(endpointUrl, {
+export async function createStoryShadowingLesson(
+  request: CreateStoryShadowingJobRequest,
+  onProgress?: (progress: number, stageMessage: string) => void
+): Promise<IStorybook> {
+  // 1. Gửi request tạo Job vào BullMQ
+  const res = await fetch(`${AGENTS_BASE_URL}/agents/story-shadowing/jobs`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
-    },
-    body: JSON.stringify(requestPayload),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = `Khởi tạo Pipeline thất bại (${response.status})`;
-    try {
-      const errJson = JSON.parse(errorText);
-      errorMessage = errJson.message || errorMessage;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-    throw new Error(errorMessage);
+  if (!res.ok) {
+    throw new Error(`Tạo Job thất bại: ${res.statusText}`);
   }
 
-  if (!response.body) {
-    throw new Error('Máy chủ không trả về luồng dữ liệu (ReadableStream is empty)');
+  const jobData: CreateStoryShadowingJobResponse = await res.json();
+
+  // 2. Nếu đã có sẵn bài học (Idempotency), tải trực tiếp ngay lập tức
+  if (jobData.status === 'completed' && jobData.existingStoryId) {
+    onProgress?.(100, 'Bài học có sẵn đã sẵn sàng');
+    return fetchStoryById(jobData.existingStoryId);
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+  // 3. Mở kết nối GET SSE lắng nghe tiến trình thời gian thực
+  return new Promise<IStorybook>((resolve, reject) => {
+    const sse = new EventSource(`${AGENTS_BASE_URL}${jobData.sseUrl}`);
 
-  return new Promise<StoryShadowingDonePayload>((resolve, reject) => {
-    async function processStream() {
+    sse.onmessage = async (event) => {
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        const data: StoryShadowingProgressEvent = JSON.parse(event.data);
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // Giữ lại mẩu chunk chưa trọn vẹn trong buffer
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data:')) continue;
-
-            const jsonStr = trimmed.replace(/^data:\s*/, '');
-            if (!jsonStr) continue;
-
-            try {
-              const event: StoryShadowingProgressEvent = JSON.parse(jsonStr);
-
-              // Cập nhật thanh tiến trình lên giao diện
-              if (event.progress !== undefined && event.message) {
-                onProgress?.(event.progress, event.message, event.stepId);
-              }
-
-              // Xử lý sự kiện hoàn tất (status: done)
-              if (event.status === 'done' && event.payload) {
-                reader.cancel();
-                resolve(event.payload);
-                return;
-              }
-
-              // Xử lý sự kiện lỗi từ Pipeline
-              if (event.status === 'failed') {
-                reader.cancel();
-                reject(new Error(event.message || 'Lỗi không xác định trong quá trình thực thi Pipeline'));
-                return;
-              }
-            } catch (parseErr) {
-              console.warn('[SSE Parse Warning] Bỏ qua chunk không hợp lệ:', jsonStr);
-            }
-          }
+        if (data.progress !== undefined && data.message) {
+          onProgress?.(data.progress, data.message);
         }
 
-        reject(new Error('Luồng SSE đã đóng trước khi nhận được sự kiện hoàn tất (status: done)'));
+        // Khi tiến trình hoàn tất
+        if (data.status === 'done' && data.payload?.storyId) {
+          sse.close();
+          const story = await fetchStoryById(data.payload.storyId);
+          resolve(story);
+        } else if (data.status === 'failed') {
+          sse.close();
+          reject(new Error(data.message || 'Lỗi xử lý trong Pipeline'));
+        }
       } catch (err) {
+        sse.close();
         reject(err);
       }
-    }
+    };
 
-    processStream();
+    sse.onerror = (err) => {
+      sse.close();
+      reject(new Error('Mất kết nối Server-Sent Events với Agent Gateway'));
+    };
   });
 }
 
 /**
- * 1. Khởi chạy Text Shadowing Pipeline
+ * Tải chi tiết bài học Storybook theo ID
  */
-export async function createTextShadowingLesson(
-  request: CreateTextShadowingRequest,
-  onProgress?: ProgressCallback
-): Promise<StoryShadowingDonePayload> {
-  return streamAgentPipeline(
-    `${AGENTS_BASE_URL}/v1/agents/story-shadowing/text/stream`,
-    request,
-    onProgress
-  );
-}
-
-/**
- * 2. Khởi chạy YouTube Shadowing Pipeline
- */
-export async function createYoutubeShadowingLesson(
-  request: CreateYoutubeShadowingRequest,
-  onProgress?: ProgressCallback
-): Promise<StoryShadowingDonePayload> {
-  return streamAgentPipeline(
-    `${AGENTS_BASE_URL}/v1/agents/story-shadowing/youtube/stream`,
-    request,
-    onProgress
-  );
+export async function fetchStoryById(id: string): Promise<IStorybook> {
+  const res = await fetch(`${AGENTS_BASE_URL}/agents/story-shadowing/stories/${id}`);
+  if (!res.ok) {
+    throw new Error(`Không thể tải bài học [${id}]: ${res.statusText}`);
+  }
+  return res.json();
 }
 ```
 
@@ -556,11 +462,11 @@ export async function createYoutubeShadowingLesson(
 
 | HTTP Code | Error Scenario | Nguyên nhân | Hướng xử lý cho Client (`aha-tools`) |
 | :---: | :--- | :--- | :--- |
-| **`400`** | `Bad Request` | Dữ liệu đầu vào sai validation Zod/DTO: đoạn văn bản `< 10` hoặc `> 10,000` ký tự; hoặc `youtubeUrl` không đúng định dạng URL. | Hiển thị thông báo validation chi tiết ngay trên form nhập liệu trước khi bấm gửi. |
-| **`404`** | `Plugin Not Found` | Truy vấn sai tên `pluginId` hoặc tên `pipeline` trên URL Gateway. | Đảm bảo URL chính xác: `/v1/agents/story-shadowing/{text\|youtube}/stream`. |
-| **`422`** | `Unprocessable Entity` | Video YouTube bị tắt tính năng phụ đề (No Closed Captions / Subtitles disabled) hoặc là video riêng tư / giới hạn độ tuổi. | Hiển thị Toast thông báo: *"Video YouTube này không có phụ đề khả dụng. Vui lòng chọn video khác có phụ đề tiếng Anh."* |
-| **`429`** | `Too Many Requests` | Vượt ngưỡng giới hạn gọi API (Rate Limit Quota) của Google Gemini hoặc Google Cloud TTS. | Phía client hiển thị trạng thái chờ. Máy chủ tự động điều tiết bằng hàng đợi backoff; nếu lỗi vẫn tiếp diễn, thông báo người dùng thử lại sau 1 phút. |
-| **`500`** | `Internal Server Error` | Lỗi phân tích cú pháp JSON từ LLM, lỗi ngắt kết nối mạng với YouTube API, hoặc lỗi gián đoạn CSDL MongoDB. | Hiển thị nút *"Thử lại"* (Retry), log `jobId` gửi về hệ thống giám sát. |
+| **`400`** | `Bad Request` | Dữ liệu đầu vào sai validation DTO: thiếu `text` khi pipeline là `text`; hoặc `youtubeUrl` không đúng định dạng. | Kiểm tra dữ liệu trên form trước khi gửi. |
+| **`404`** | `Not Found` | Không tìm thấy bài học với `id` được chỉ định hoặc format ObjectId sai. | Kiểm tra ID hoặc điều hướng người dùng tạo mới. |
+| **`422`** | `Unprocessable Entity` | Video YouTube bị tắt tính năng phụ đề (Closed Captions) hoặc là video riêng tư. | Thông báo người dùng chọn video khác có phụ đề tiếng Anh. |
+| **`429`** | `Too Many Requests` | Vượt ngưỡng hạn ngạch Gemini / Google TTS. | Hàng đợi BullMQ tự động retry tối đa 3 lần với Exponential Backoff. Client giữ kết nối SSE sẽ tự nhận kết quả khi retry thành công. |
+| **`500`** | `Internal Server Error` | Lỗi mạng gián đoạn với YouTube API, lỗi phân tích Zod hoặc CSDL MongoDB gián đoạn. | Hiển thị thông báo lỗi thân thiện cho người dùng, gửi lại yêu cầu. |
 
 ---
 
