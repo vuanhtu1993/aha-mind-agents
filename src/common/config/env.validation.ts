@@ -21,6 +21,11 @@ export const EnvSchema = z.object({
   // Google Gemini AI Configuration
   GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
 
+  // Hive AI Configuration (Dự phòng cho Gemini 503)
+  HIVE_API_KEY: z.string().optional(),
+  HIVE_MODEL: z.string().default('zai-org/glm-5.3-flash'),
+  HIVE_BASE_URL: z.string().default('https://api.thehive.ai/api/v3'),
+
   // Google Cloud TTS Key (Cho giọng đọc và ngữ âm IPA)
   GOOGLE_CLOUD_TTS_KEY: z.string().optional(),
   GOOGLE_TTS_RATE_LIMIT_RPM: z.coerce.number().default(30),

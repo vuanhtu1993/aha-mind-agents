@@ -20,4 +20,16 @@ describe('validateEnv', () => {
 
     expect(() => validateEnv(invalidConfig)).toThrow('[EnvValidation]');
   });
+
+  it('should support Hive AI configuration with defaults', () => {
+    const env = {
+      MONGODB_URI: 'mongodb://localhost:27017/test',
+      HIVE_API_KEY: 'test-hive-key',
+    };
+    const validated = validateEnv(env);
+    expect(validated.HIVE_API_KEY).toBe('test-hive-key');
+    expect(validated.HIVE_MODEL).toBe('zai-org/glm-5.3-flash');
+    expect(validated.HIVE_BASE_URL).toBe('https://api.thehive.ai/api/v3');
+  });
 });
+
