@@ -7,6 +7,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { GeminiService } from '../../../core/gemini/gemini.service';
+import { HiveService } from 'src/core/hive/hive.service';
 import { PrepSynthesizerOutputSchema } from '../speaking-quiz.schema';
 import { SpeakingQuizStateType } from '../speaking-quiz.state';
 
@@ -26,7 +27,7 @@ Incorporate at least 2 of the target vocabulary items naturally into the model a
 export class PrepSynthesizerNode {
   private readonly logger = new Logger(PrepSynthesizerNode.name);
 
-  constructor(private readonly gemini: GeminiService) {}
+  constructor(private readonly hive: HiveService) { }
 
   public async invoke(state: SpeakingQuizStateType): Promise<Partial<SpeakingQuizStateType>> {
     if (state.error || !state.generatedQuestion) return {};
@@ -51,7 +52,7 @@ Construct the full PREP scaffolding with all 4 stages: point, reason, example, c
 
     while (attempt <= maxRetries) {
       try {
-        const response = await this.gemini.invokeStructured(
+        const response = await this.hive.invokeStructured(
           PrepSynthesizerOutputSchema,
           [
             { role: 'system', content: promptTemplate },

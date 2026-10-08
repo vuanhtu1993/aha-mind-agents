@@ -7,6 +7,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { GeminiService } from '../../../core/gemini/gemini.service';
+import { HiveService } from 'src/core/hive/hive.service';
 import { QuestionFormulatorOutputSchema } from '../speaking-quiz.schema';
 import { SpeakingQuizStateType } from '../speaking-quiz.state';
 
@@ -31,7 +32,7 @@ Pedagogical Rules:
 export class QuestionFormulatorNode {
   private readonly logger = new Logger(QuestionFormulatorNode.name);
 
-  constructor(private readonly gemini: GeminiService) {}
+  constructor(private readonly hive: HiveService) { }
 
   public async invoke(state: SpeakingQuizStateType): Promise<Partial<SpeakingQuizStateType>> {
     if (state.error || !state.resolvedTopic) return {};
@@ -49,7 +50,7 @@ Target CEFR Level: ${state.level}
 Generate a punchy, concise debate question (under 20 words) that directly invites the learner to take a stand.`;
 
     try {
-      const response = await this.gemini.invokeStructured(
+      const response = await this.hive.invokeStructured(
         QuestionFormulatorOutputSchema,
         [
           { role: 'system', content: promptTemplate },

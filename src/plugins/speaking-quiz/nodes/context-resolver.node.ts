@@ -19,7 +19,7 @@ export class ContextResolverNode {
   constructor(
     @InjectModel(Storybook.name, AHA_TOOLS_CONNECTION)
     private readonly storybookModel: Model<Storybook>,
-  ) {}
+  ) { }
 
   public async invoke(state: SpeakingQuizStateType): Promise<Partial<SpeakingQuizStateType>> {
     if (state.error) return {};
