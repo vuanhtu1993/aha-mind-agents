@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { GeminiService } from './gemini/gemini.service';
 import { GeminiRateLimiterService } from './gemini/gemini-rate-limiter.service';
+import { HiveService } from './hive/hive.service';
 import { PluginRegistryService } from './services/plugin-registry.service';
 import { ActiveJobTrackerService } from './services/active-job-tracker.service';
 import { RedisPubSubService } from './services/redis-pubsub.service';
@@ -13,6 +14,7 @@ import { ScraperToolService } from './tools/scraper.tool';
   providers: [
     GeminiService,
     GeminiRateLimiterService,
+    HiveService,
     PluginRegistryService,
     RedisPubSubService,
     ActiveJobTrackerService,
@@ -23,6 +25,7 @@ import { ScraperToolService } from './tools/scraper.tool';
   exports: [
     GeminiService,
     GeminiRateLimiterService,
+    HiveService,
     PluginRegistryService,
     RedisPubSubService,
     ActiveJobTrackerService,
