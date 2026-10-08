@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
   HiveCallOptions,
   HiveInvokeResult,
@@ -128,11 +129,23 @@ export class HiveService implements OnModuleInit {
       ? [{ role: 'user', content: prompt }]
       : this.normalizeMessages(prompt);
 
+    // Trích xuất JSON Schema từ Zod để hướng dẫn model sinh đúng cấu trúc và tên trường
+    let schemaInstruction = '';
+    if (schema && typeof schema.parse === 'function') {
+      try {
+        const jsonSchema = zodToJsonSchema(schema, 'ResponseSchema');
+        const schemaDef = (jsonSchema as any).definitions?.ResponseSchema || jsonSchema;
+        schemaInstruction = `\nTarget JSON Schema:\n${JSON.stringify(schemaDef, null, 2)}`;
+      } catch {
+        // Fallback nếu không phải Zod schema hợp lệ
+      }
+    }
+
     // Bổ sung chỉ thị xuất JSON thuần túy vào system instruction để đảm bảo model không kèm markdown thừa
     const systemPrompt: HiveMessage = {
       role: 'system',
       content:
-        'You are an AI assistant that MUST respond ONLY with a valid JSON object matching the requested schema. Do not include markdown code block backticks (```json) or introductory explanations.',
+        `You are an AI assistant that MUST respond ONLY with a valid JSON object matching the requested schema.${schemaInstruction}\nDo not include markdown code block backticks (\`\`\`json) or introductory explanations.`,
     };
 
     const enhancedMessages = [systemPrompt, ...rawMessages];
