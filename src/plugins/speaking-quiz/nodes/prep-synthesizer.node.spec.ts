@@ -1,15 +1,15 @@
 import { PrepSynthesizerNode } from './prep-synthesizer.node';
-import { GeminiService } from '../../../core/gemini/gemini.service';
+import { HiveService } from 'src/core/hive/hive.service';
 
 describe('PrepSynthesizerNode', () => {
   let node: PrepSynthesizerNode;
-  let mockGeminiService: Partial<GeminiService>;
+  let mockHiveService: Partial<HiveService>;
 
   beforeEach(() => {
-    mockGeminiService = {
+    mockHiveService = {
       invokeStructured: jest.fn(),
     };
-    node = new PrepSynthesizerNode(mockGeminiService as GeminiService);
+    node = new PrepSynthesizerNode(mockHiveService as HiveService);
   });
 
   it('should synthesize PREP scaffold containing all 4 stages', async () => {
@@ -42,7 +42,7 @@ describe('PrepSynthesizerNode', () => {
       },
       usage: { promptTokens: 300, completionTokens: 180, totalTokens: 480 },
     };
-    (mockGeminiService.invokeStructured as jest.Mock).mockResolvedValue(mockPrepOutput);
+    (mockHiveService.invokeStructured as jest.Mock).mockResolvedValue(mockPrepOutput);
 
     const result = await node.invoke({
       resolvedTopic: 'Remote Work',
@@ -59,7 +59,7 @@ describe('PrepSynthesizerNode', () => {
   });
 
   it('should retry when initial synthesis returns invalid schema', async () => {
-    (mockGeminiService.invokeStructured as jest.Mock)
+    (mockHiveService.invokeStructured as jest.Mock)
       .mockRejectedValueOnce(new Error('Validation error: missing conclusion'))
       .mockResolvedValueOnce({
         parsed: {
@@ -79,6 +79,6 @@ describe('PrepSynthesizerNode', () => {
     } as any);
 
     expect(result.prepScaffold?.conclusion.title).toBe('Conclusion');
-    expect(mockGeminiService.invokeStructured).toHaveBeenCalledTimes(2);
+    expect(mockHiveService.invokeStructured).toHaveBeenCalledTimes(2);
   });
 });

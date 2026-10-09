@@ -1,15 +1,15 @@
 import { QuestionFormulatorNode } from './question-formulator.node';
-import { GeminiService } from '../../../core/gemini/gemini.service';
+import { HiveService } from 'src/core/hive/hive.service';
 
 describe('QuestionFormulatorNode', () => {
   let node: QuestionFormulatorNode;
-  let mockGeminiService: Partial<GeminiService>;
+  let mockHiveService: Partial<HiveService>;
 
   beforeEach(() => {
-    mockGeminiService = {
+    mockHiveService = {
       invokeStructured: jest.fn(),
     };
-    node = new QuestionFormulatorNode(mockGeminiService as GeminiService);
+    node = new QuestionFormulatorNode(mockHiveService as HiveService);
   });
 
   it('should formulate debate question matching topic and level', async () => {
@@ -20,7 +20,7 @@ describe('QuestionFormulatorNode', () => {
       },
       usage: { promptTokens: 120, completionTokens: 45, totalTokens: 165 },
     };
-    (mockGeminiService.invokeStructured as jest.Mock).mockResolvedValue(mockStructuredResult);
+    (mockHiveService.invokeStructured as jest.Mock).mockResolvedValue(mockStructuredResult);
 
     const result = await node.invoke({
       resolvedTopic: 'AI in Education',
@@ -37,8 +37,8 @@ describe('QuestionFormulatorNode', () => {
   });
 
   it('should return error when LLM invocation fails', async () => {
-    (mockGeminiService.invokeStructured as jest.Mock).mockRejectedValue(
-      new Error('Gemini API Rate Limit Exceeded'),
+    (mockHiveService.invokeStructured as jest.Mock).mockRejectedValue(
+      new Error('Hive API Error'),
     );
 
     const result = await node.invoke({
