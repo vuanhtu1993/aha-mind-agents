@@ -56,7 +56,7 @@ export class YoutubeSentenceConsolidatorNode {
 
     try {
       const MAX_BLOCKS = 400;
-      const CHUNK_SIZE = 100;
+      const CHUNK_SIZE = 25; // Tối ưu cho reasoning model: ~200 từ/chunk tránh cạn kiệt token
       const transcriptToProcess = state.youtubeTranscript.slice(0, MAX_BLOCKS);
 
       const chunkPromises = [];
@@ -86,7 +86,12 @@ export class YoutubeSentenceConsolidatorNode {
               { role: 'system', content: prompt },
               { role: 'user', content: inputText },
             ],
-            { temperature: temp, model: model, name: 'youtube_sentence_consolidator' }
+            {
+              temperature: temp,
+              model: model,
+              maxTokens: 8192,
+              name: 'youtube_sentence_consolidator',
+            }
           )
         );
       }
