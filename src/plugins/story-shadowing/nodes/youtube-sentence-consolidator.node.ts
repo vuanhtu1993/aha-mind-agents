@@ -1,6 +1,13 @@
+/**
+ * @file youtube-sentence-consolidator.node.ts
+ * @description Node gộp phụ đề YouTube và căn chỉnh thời gian, phiên âm IPA sử dụng Hive AI
+ *
+ * Made by Anh Tu - Share to be share
+ */
+
 import { Injectable, Logger } from '@nestjs/common';
-import { GeminiService } from '../../../core/gemini/gemini.service';
-import { GeminiYoutubeConsolidatedSchema } from '../story-shadowing.schema';
+import { HiveService } from 'src/core/hive/hive.service';
+import { YoutubeConsolidatedSchema } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
 
 const SYSTEM_PROMPT = `You are an expert linguist and audio synchronizer.
@@ -40,7 +47,7 @@ Do NOT lose any audio gap, endMs MUST be the exact end time of the last block fo
 export class YoutubeSentenceConsolidatorNode {
   private readonly logger = new Logger(YoutubeSentenceConsolidatorNode.name);
 
-  constructor(private readonly gemini: GeminiService) { }
+  constructor(private readonly hive: HiveService) { }
 
   public async invoke(state: StoryShadowingStateType): Promise<Partial<StoryShadowingStateType>> {
     if (state.error || !state.youtubeTranscript) return {};
@@ -73,13 +80,13 @@ export class YoutubeSentenceConsolidatorNode {
         const inputText = JSON.stringify(shiftedChunk);
 
         chunkPromises.push(
-          this.gemini.invokeStructured(
-            GeminiYoutubeConsolidatedSchema,
+          this.hive.invokeStructured(
+            YoutubeConsolidatedSchema,
             [
               { role: 'system', content: prompt },
               { role: 'user', content: inputText },
             ],
-            { temperature: temp, model: model }
+            { temperature: temp, model: model, name: 'youtube_sentence_consolidator' }
           )
         );
       }

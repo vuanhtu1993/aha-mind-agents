@@ -2,12 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GeminiService } from '../../../core/gemini/gemini.service';
 import { GeminiBatchKeywordEnrichSchema, IdentifiedKeywordItem } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
+import { HiveService } from 'src/core/hive/hive.service';
 
 @Injectable()
 export class KeywordEnricherNode {
   private readonly logger = new Logger(KeywordEnricherNode.name);
 
-  constructor(private readonly gemini: GeminiService) { }
+  constructor(private readonly hive: HiveService) { }
 
   private getBatchEnrichmentUserPrompt(items: IdentifiedKeywordItem[]) {
     const itemsListStr = items.map((item, i) => `
@@ -74,7 +75,7 @@ Output an array of items matching the schema.`;
 
       // Chạy song song Gemini và Dictionary API
       const [response, dictResults] = await Promise.all([
-        this.gemini.invokeStructured(GeminiBatchKeywordEnrichSchema, [
+        this.hive.invokeStructured(GeminiBatchKeywordEnrichSchema, [
           { role: 'system', content: prompt },
           { role: 'user', content: this.getBatchEnrichmentUserPrompt(state.identifiedKeywords) }
         ], { temperature: temp, model: model, name: 'enrich_keywords' }),

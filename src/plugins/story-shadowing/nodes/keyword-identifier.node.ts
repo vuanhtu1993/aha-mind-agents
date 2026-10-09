@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GeminiService } from '../../../core/gemini/gemini.service';
+import { HiveService } from 'src/core/hive/hive.service';
 import { IdentifiedKeywordListSchema } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
 
@@ -21,7 +22,7 @@ Output valid JSON matching the schema.`;
 export class KeywordIdentifierNode {
   private readonly logger = new Logger(KeywordIdentifierNode.name);
 
-  constructor(private readonly gemini: GeminiService) {}
+  constructor(private readonly hive: HiveService) { }
 
   public async invoke(state: StoryShadowingStateType): Promise<Partial<StoryShadowingStateType>> {
     // Đối với Text Pipeline: state.rawText có sẵn.
@@ -49,12 +50,12 @@ export class KeywordIdentifierNode {
         { role: 'user', content: textToAnalyze },
       ] as any;
 
-      const response = await this.gemini.invokeStructured(
+      const response = await this.hive.invokeStructured(
         IdentifiedKeywordListSchema,
         messages,
         { temperature: temp, model: model, name: 'extract_difficult_keywords' }
       );
-      
+
       this.logger.log(`✅ Trích xuất thành công ${response.parsed.items.length} từ vựng khó.`);
 
       return {

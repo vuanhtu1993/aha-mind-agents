@@ -8,7 +8,7 @@ export const WordSchema = z.object({
 
 export type Word = z.infer<typeof WordSchema>;
 
-export const GeminiYoutubeConsolidatedSchema = z.object({
+export const YoutubeConsolidatedSchema = z.object({
   level: z.enum(['easy', 'medium', 'hard']),
   sentences: z.array(
     z.object({
@@ -20,6 +20,9 @@ export const GeminiYoutubeConsolidatedSchema = z.object({
     })
   ),
 });
+
+// Giữ lại alias để đảm bảo tương thích ngược (Backward Compatibility)
+export const GeminiYoutubeConsolidatedSchema = YoutubeConsolidatedSchema;
 
 // Schema trả về từ Gemini khi chia câu (raw, chưa có audio)
 export const GeminiSentenceListSchema = z.object({

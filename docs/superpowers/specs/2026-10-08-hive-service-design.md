@@ -1,21 +1,26 @@
+* [ ] 
+
 # Hive LLM Service Architectural Design
 
-> **Tài liệu đặc tả kiến trúc:** Tích hợp Hive LLM Service (GLM-5.3-Flash) độc lập giải quyết bài toán HTTP 503 từ Gemini Service trong hệ thống `aha-mind-agents`.  
-> **Tác giả:** Anh Tú  
-> **Thời gian:** 2026-10-08  
+> **Tài liệu đặc tả kiến trúc:** Tích hợp Hive LLM Service (GLM-5.3-Flash) độc lập giải quyết bài toán HTTP 503 từ Gemini Service trong hệ thống `aha-mind-agents`.
+> **Tác giả:** Anh Tú
+> **Thời gian:** 2026-10-08
 
 ---
 
 ## 1. Bối cảnh & Phân tích Nguyên nhân Gốc rễ (Root Cause Analysis)
 
 ### 1.1. Hiện trạng vấn đề
+
 Hệ thống `aha-mind-agents` vận hành các chuỗi Agentic Workflow phức tạp (như Speaking Quiz, Story Shadowing), đòi hỏi gọi nhiều lượt LLM liên tiếp để phân tích ngôn ngữ, trích xuất cấu trúc và tổng hợp câu hỏi.
 Hiện tại, tầng AI Core phụ thuộc vào `GeminiService` (sử dụng `@langchain/google-genai`).
 
 Trong quá trình vận hành thực tế, hệ thống liên tục gặp lỗi **HTTP 503 Service Unavailable** từ phía Google Gemini. Dù `GeminiService` đã được trang bị cơ chế xoay vòng Key (`Key Rotation`), toàn bộ các key vẫn đồng loạt thất bại do lỗi 503 là lỗi quá tải hạ tầng cụm máy chủ vùng (Regional Server Overload) của Google chứ không phải do cạn kiệt Quota cục bộ của từng Key (429).
 
 ### 1.2. Mục tiêu kỹ thuật
+
 Phát triển một dịch vụ LLM độc lập mới mang tên **`HiveService`** dựa trên nền tảng The Hive AI API (`https://api.thehive.ai/api/v3/chat/completions`):
+
 * Mô hình sử dụng mặc định: `zai-org/glm-5.3-flash`.
 * Kiến trúc: Độc lập (Pluggable Service), tuân thủ nguyên lý Liskov Substitution Principle (LSP).
 * Hợp đồng giao tiếp (Contract): Tương thích hoàn toàn với interface của `GeminiService`, cho phép các Agent Node chuyển đổi giữa Gemini và Hive mà **không phải sửa đổi bất kỳ dòng logic nghiệp vụ nào**.
@@ -26,14 +31,14 @@ Phát triển một dịch vụ LLM độc lập mới mang tên **`HiveService`
 
 Sau khi kiểm chứng thực nghiệm trực tiếp qua HTTP request với `HIVE_API_KEY`:
 
-| Đặc tính | Chi tiết kỹ thuật | Lưu ý khi hiện thực |
-| :--- | :--- | :--- |
-| **Endpoint** | `POST https://api.thehive.ai/api/v3/chat/completions` | Tương thích chuẩn OpenAI Chat Completions. |
-| **Headers** | `Authorization: Bearer <HIVE_API_KEY>`, `Content-Type: application/json` | Đọc an toàn từ `ConfigService` (`.env`). |
-| **Bản chất Model** | **Reasoning Model (Mô hình suy luận)** | Trả về reasoning tokens trước khi đưa ra nội dung (`content`). |
-| **Max Tokens** | Mặc định cần thiết lập `>= 2048` hoặc `4096` | Nếu đặt thấp (ví dụ 100), reasoning sẽ chiếm hết quota khiến `content: null` và `finish_reason: "length"`. |
-| **Structured Output** | Hỗ trợ qua `response_format: { type: "json_object" }` | Cần kèm hướng dẫn schema trong `messages` và validate đầu ra bằng `zod`. |
-| **Streaming** | Hỗ trợ qua `stream: true` (Server-Sent Events - SSE) | Stream lần lượt các chunk `reasoning`, sau đó đến `content`, kết thúc bằng `data: [DONE]`. |
+| Đặc tính                 | Chi tiết kỹ thuật                                                         | Lưu ý khi hiện thực                                                                                                  |
+| :-------------------------- | :--------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| **Endpoint**          | `POST https://api.thehive.ai/api/v3/chat/completions`                      | Tương thích chuẩn OpenAI Chat Completions.                                                                           |
+| **Headers**           | `Authorization: Bearer <HIVE_API_KEY>`, `Content-Type: application/json` | Đọc an toàn từ`ConfigService` (`.env`).                                                                          |
+| **Bản chất Model**  | **Reasoning Model (Mô hình suy luận)**                              | Trả về reasoning tokens trước khi đưa ra nội dung (`content`).                                                  |
+| **Max Tokens**        | Mặc định cần thiết lập`>= 2048` hoặc `4096`                       | Nếu đặt thấp (ví dụ 100), reasoning sẽ chiếm hết quota khiến`content: null` và `finish_reason: "length"`. |
+| **Structured Output** | Hỗ trợ qua`response_format: { type: "json_object" }`                     | Cần kèm hướng dẫn schema trong`messages` và validate đầu ra bằng `zod`.                                     |
+| **Streaming**         | Hỗ trợ qua`stream: true` (Server-Sent Events - SSE)                      | Stream lần lượt các chunk`reasoning`, sau đó đến `content`, kết thúc bằng `data: [DONE]`.               |
 
 ---
 
@@ -96,7 +101,9 @@ src/
 `HiveService` cung cấp 3 phương thức cốt lõi:
 
 ### 4.1. `invoke(messages, options)`
+
 Gọi LLM ở chế độ Completion thông thường, trả về nội dung dạng chuỗi cùng metadata lượng token đã tiêu thụ.
+
 * **Input:**
   * `messages`: Mảng tin nhắn `{ role: 'system' | 'user' | 'assistant', content: string }[]`.
   * `options`: `{ temperature?: number, maxTokens?: number, model?: string }`.
@@ -104,7 +111,9 @@ Gọi LLM ở chế độ Completion thông thường, trả về nội dung d�
   * `{ text: string, usage: { promptTokens: number, completionTokens: number, totalTokens: number }, reasoning?: string }`.
 
 ### 4.2. `invokeStructured<T>(schema, prompt, options)`
+
 Phương thức quan trọng nhất dùng cho các Agent Node để trích xuất dữ liệu có cấu trúc.
+
 * **Input:**
   * `schema`: Zod Schema (ví dụ `IdentifiedKeywordListSchema`, `GeminiSentenceListSchema`).
   * `prompt`: Chuỗi câu hỏi hoặc mảng tin nhắn `messages`.
@@ -119,7 +128,9 @@ Phương thức quan trọng nhất dùng cho các Agent Node để trích xuấ
   * `{ parsed: T, usage: { promptTokens: number, completionTokens: number, totalTokens: number } }`.
 
 ### 4.3. `invokeStream(messages, options)`
+
 Hỗ trợ Server-Sent Events (SSE) streaming theo thời gian thực.
+
 * **Input:** Tương tự `invoke`.
 * **Output:** `AsyncGenerator<{ content?: string, reasoning?: string, isDone: boolean, usage?: any }>` cho phép consumer đọc từng chunk token khi nó được sinh ra.
 
@@ -143,4 +154,5 @@ Hỗ trợ Server-Sent Events (SSE) streaming theo thời gian thực.
   * Model `zai-org/glm-5.3-flash` là reasoning model nên độ trễ (latency) của token đầu tiên (TTFT) có thể cao hơn Gemini Flash vài giây do bước suy luận ban đầu. Đổi lại, độ chính xác của cấu trúc JSON và khả năng bám sát ngữ cảnh rất cao.
 
 ---
+
 *Made by Anh Tu - Share to be share*

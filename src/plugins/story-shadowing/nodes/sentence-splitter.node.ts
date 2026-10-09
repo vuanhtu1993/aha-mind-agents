@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GeminiService } from '../../../core/gemini/gemini.service';
 import { GeminiSentenceListSchema } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
+import { HiveService } from 'src/core/hive/hive.service';
 
 const SYSTEM_PROMPT = `You are a language learning assistant and phonetics expert.
 Split the given English text into individual sentences for shadowing practice.
@@ -23,20 +24,20 @@ Rules:
 export class SentenceSplitterNode {
   private readonly logger = new Logger(SentenceSplitterNode.name);
 
-  constructor(private readonly gemini: GeminiService) {}
+  constructor(private readonly hive: HiveService) { }
 
   public async invoke(state: StoryShadowingStateType): Promise<Partial<StoryShadowingStateType>> {
     if (state.error || !state.rawText) return {};
 
     this.logger.log('Đang phân tách câu và trích xuất IPA...');
-    
+
     const nodeConfig = state.config?.nodeOverrides?.['sentenceSplitter'] || {};
     const prompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
     const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
     const model = nodeConfig.model || state.config?.defaultModel;
 
     try {
-      const response = await this.gemini.invokeStructured(
+      const response = await this.hive.invokeStructured(
         GeminiSentenceListSchema,
         [
           { role: 'system', content: prompt },
@@ -44,10 +45,10 @@ export class SentenceSplitterNode {
         ],
         { temperature: temp, model: model, name: 'sentence_splitter' }
       );
-      
+
       this.logger.log(`✅ Phân tách thành công ${response.parsed.sentences.length} câu.`);
-      
-      return { 
+
+      return {
         level: response.parsed.level,
         rawSentences: response.parsed.sentences,
         tokenUsage: response.usage
