@@ -5,8 +5,7 @@
  * Made by Anh Tu - Share to be share
  */
 
-import { Injectable, Logger } from '@nestjs/common';
-import { dictionary } from 'cmu-pronouncing-dictionary';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 /**
  * Bảng ánh xạ 39 âm vị ARPAbet chuẩn sang Ký hiệu ngữ âm quốc tế (IPA).
@@ -32,8 +31,67 @@ const VOWEL_SET = new Set([
 ]);
 
 @Injectable()
-export class PhoneticService {
+export class PhoneticService implements OnModuleInit {
   private readonly logger = new Logger(PhoneticService.name);
+  private dictionary: Record<string, string> = {};
+
+  constructor() {
+    this.initDictionary();
+  }
+
+  async onModuleInit(): Promise<void> {
+    if (Object.keys(this.dictionary).length === 0) {
+      await this.initDictionaryAsyncFallback();
+    }
+  }
+
+  /**
+   * Khởi tạo từ điển đồng bộ bằng cách đọc trực tiếp file dữ liệu qua fs.
+   * Giải pháp này giải quyết triệt để lỗi ERR_REQUIRE_ESM trên Serverless (AWS Lambda / Vercel),
+   * vì Node.js không phải thực thi lệnh require() đối với gói ES Module.
+   */
+  public initDictionary(): void {
+    if (Object.keys(this.dictionary).length > 0) return;
+    try {
+      // Dynamic require module fs và path để tránh lỗi bundling
+      const fs = require('fs');
+      const filePath = require.resolve('cmu-pronouncing-dictionary');
+      const content = fs.readFileSync(filePath, 'utf8');
+      const start = content.indexOf('dictionary = ') + 'dictionary = '.length;
+      const end = content.lastIndexOf('}') + 1;
+      this.dictionary = JSON.parse(content.slice(start, end));
+      this.logger.log(`✅ PhoneticService đã nạp từ điển CMUdict (${Object.keys(this.dictionary).length} từ).`);
+    } catch (err: any) {
+      this.logger.warn(`⚠️ Không thể nạp CMUdict đồng bộ qua fs: ${err.message}. Đang thử fallback...`);
+    }
+  }
+
+  /**
+   * Fallback: Nạp bất đồng bộ qua dynamic import() nếu fs không tìm thấy đường dẫn (ví dụ: môi trường đóng gói đặc biệt)
+   */
+  public async initDictionaryAsyncFallback(): Promise<void> {
+    if (Object.keys(this.dictionary).length > 0) return;
+    try {
+      const dynamicImport = new Function('specifier', 'return import(specifier)');
+      const mod = await dynamicImport('cmu-pronouncing-dictionary');
+      this.dictionary = mod.dictionary || mod.default?.dictionary || mod.default || {};
+      this.logger.log(`✅ PhoneticService đã nạp từ điển CMUdict qua dynamic import (${Object.keys(this.dictionary).length} từ).`);
+    } catch (err: any) {
+      this.logger.error(`❌ Không thể nạp CMUdict qua fallback: ${err.message}`);
+    }
+  }
+
+  /**
+   * Đảm bảo từ điển đã sẵn sàng
+   */
+  public async ensureInitialized(): Promise<void> {
+    if (Object.keys(this.dictionary).length === 0) {
+      this.initDictionary();
+      if (Object.keys(this.dictionary).length === 0) {
+        await this.initDictionaryAsyncFallback();
+      }
+    }
+  }
 
   /**
    * Phiên âm một từ đơn thành chuỗi IPA dạng /.../
@@ -50,7 +108,7 @@ export class PhoneticService {
     if (!cleanWord) return '';
 
     // Fast lookup trong bảng băm O(1)
-    const arpabet = dictionary[cleanWord];
+    const arpabet = this.dictionary[cleanWord];
     if (!arpabet) {
       return '';
     }

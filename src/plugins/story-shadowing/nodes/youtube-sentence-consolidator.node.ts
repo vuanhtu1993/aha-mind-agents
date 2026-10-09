@@ -58,6 +58,7 @@ export class YoutubeSentenceConsolidatorNode {
     this.logger.log('Đang gộp phụ đề và căn chỉnh thời gian bằng AI...');
 
     try {
+      await this.phonetics.ensureInitialized();
       const MAX_BLOCKS = 400;
       const CHUNK_SIZE = 25; // Tối ưu cho reasoning model: ~200 từ/chunk tránh cạn kiệt token
       const transcriptToProcess = state.youtubeTranscript.slice(0, MAX_BLOCKS);
