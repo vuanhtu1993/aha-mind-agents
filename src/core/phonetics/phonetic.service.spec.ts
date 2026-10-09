@@ -17,6 +17,7 @@ describe('PhoneticService', () => {
     }).compile();
 
     service = module.get<PhoneticService>(PhoneticService);
+    await service.ensureInitialized();
   });
 
   it('nên khởi tạo thành công', () => {
