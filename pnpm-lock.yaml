@@ -59,6 +59,9 @@ importers:
       class-validator:
         specifier: ^0.14.1
         version: 0.14.4
+      cmu-pronouncing-dictionary:
+        specifier: ^3.0.0
+        version: 3.0.0
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
@@ -1397,6 +1400,9 @@ packages:
   cluster-key-slot@1.1.1:
     resolution: {integrity: sha512-rwHwUfXL40Chm1r08yrhU3qpUvdVlgkKNeyeGPOxnW8/SyVDvgRaed/Uz54AqWNaTCAThlj6QAs3TZcKI0xDEw==}
     engines: {node: '>=0.10.0'}
+
+  cmu-pronouncing-dictionary@3.0.0:
+    resolution: {integrity: sha512-6y5X4OxsYFnHERo6WSVPnLrk53G07MOQ8aUb2z555JgwynpbZsHR0a//WdN6DUcmE1j2auTF2TtL4PpoKze8QQ==}
 
   co@4.6.0:
     resolution: {integrity: sha512-QVb0dM5HvG+uaxitm8wONl7jltx8dqhfU33DcqtOZcLSVIKSDDLDi7+0LbAKiyI8hD9u42m2YxXSkMGWThaecQ==}
@@ -4686,6 +4692,8 @@ snapshots:
   clone@1.0.4: {}
 
   cluster-key-slot@1.1.1: {}
+
+  cmu-pronouncing-dictionary@3.0.0: {}
 
   co@4.6.0: {}
 
