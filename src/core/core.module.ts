@@ -8,6 +8,7 @@ import { RedisPubSubService } from './services/redis-pubsub.service';
 import { TtsToolService } from './tools/tts.tool';
 import { YoutubeToolService } from './tools/youtube.tool';
 import { ScraperToolService } from './tools/scraper.tool';
+import { PhoneticService } from './phonetics/phonetic.service';
 
 @Global()
 @Module({
@@ -15,6 +16,7 @@ import { ScraperToolService } from './tools/scraper.tool';
     GeminiService,
     GeminiRateLimiterService,
     HiveService,
+    PhoneticService,
     PluginRegistryService,
     RedisPubSubService,
     ActiveJobTrackerService,
@@ -26,6 +28,7 @@ import { ScraperToolService } from './tools/scraper.tool';
     GeminiService,
     GeminiRateLimiterService,
     HiveService,
+    PhoneticService,
     PluginRegistryService,
     RedisPubSubService,
     ActiveJobTrackerService,

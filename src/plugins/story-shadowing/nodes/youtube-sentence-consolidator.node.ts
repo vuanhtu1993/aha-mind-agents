@@ -7,6 +7,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { HiveService } from 'src/core/hive/hive.service';
+import { PhoneticService } from 'src/core/phonetics/phonetic.service';
 import { YoutubeConsolidatedSchema } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
 
@@ -46,7 +47,10 @@ CRITICAL RULES:
 export class YoutubeSentenceConsolidatorNode {
   private readonly logger = new Logger(YoutubeSentenceConsolidatorNode.name);
 
-  constructor(private readonly hive: HiveService) { }
+  constructor(
+    private readonly hive: HiveService,
+    private readonly phonetics: PhoneticService,
+  ) { }
 
   public async invoke(state: StoryShadowingStateType): Promise<Partial<StoryShadowingStateType>> {
     if (state.error || !state.youtubeTranscript) return {};
@@ -117,7 +121,7 @@ export class YoutubeSentenceConsolidatorNode {
           s.startMs += offset;
           s.endMs += offset;
           if (!s.words || s.words.length === 0) {
-            s.words = s.text.split(/\s+/).filter(Boolean).map((w: string) => ({ word: w, ipa: '' }));
+            s.words = this.phonetics.transcribeSentence(s.text);
           }
           allSentences.push(s);
         }
