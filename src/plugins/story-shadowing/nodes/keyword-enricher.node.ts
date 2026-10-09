@@ -26,7 +26,17 @@ For EACH item, provide:
 3. "wordFamily": 1-3 related words (e.g. noun form, adjective form).
 4. "collocations": 1-3 common collocations for this item.
 
-Output an array of items matching the schema.`;
+You MUST output a valid JSON object with the "items" key matching the schema:
+{
+  "items": [
+    {
+      "word": "...",
+      "explanation": "...",
+      "wordFamily": [...],
+      "collocations": [...]
+    }
+  ]
+}`;
   }
 
   private async fetchDictionaryIpa(word: string): Promise<{ ipa: string, audioUrl: string } | null> {
