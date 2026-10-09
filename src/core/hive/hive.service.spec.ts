@@ -155,6 +155,79 @@ describe('HiveService', () => {
         service.invokeStructured(TestSchema, 'Generate invalid')
       ).rejects.toThrow('Hive API returned invalid JSON');
     });
+
+    const ItemsSchema = z.object({
+      items: z.array(
+        z.object({
+          greeting: z.string(),
+          count: z.number(),
+        })
+      ),
+    });
+
+    it('should auto-heal when LLM returns an array directly instead of { items: [...] }', async () => {
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify([{ greeting: 'Chào bạn', count: 3 }]),
+              },
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+        },
+      });
+
+      const result = await service.invokeStructured(ItemsSchema, 'Generate greetings');
+      expect(result.parsed).toEqual({
+        items: [{ greeting: 'Chào bạn', count: 3 }],
+      });
+    });
+
+    it('should auto-heal when LLM wraps items under a different key like data or keywords', async () => {
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({ data: [{ greeting: 'Alo', count: 1 }] }),
+              },
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+        },
+      });
+
+      const result = await service.invokeStructured(ItemsSchema, 'Generate greetings');
+      expect(result.parsed).toEqual({
+        items: [{ greeting: 'Alo', count: 1 }],
+      });
+    });
+
+    it('should throw descriptive error when reasoning token limit is exceeded', async () => {
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              finish_reason: 'length',
+              message: {
+                content: null,
+                reasoning: 'Thinking too long...',
+              },
+            },
+          ],
+          usage: { prompt_tokens: 100, completion_tokens: 4096, total_tokens: 4196 },
+        },
+      });
+
+      await expect(
+        service.invokeStructured(ItemsSchema, 'Task too large')
+      ).rejects.toThrow('Hive reasoning model token limit exceeded');
+    });
   });
 
   describe('invokeStream', () => {

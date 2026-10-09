@@ -123,7 +123,7 @@ export class HiveService implements OnModuleInit {
 
     const model = options?.model || this.defaultModel;
     const temperature = options?.temperature ?? 0.1;
-    const maxTokens = options?.maxTokens ?? 4096;
+    const maxTokens = options?.maxTokens ?? 8192;
 
     const rawMessages = typeof prompt === 'string'
       ? [{ role: 'user', content: prompt }]
@@ -145,7 +145,7 @@ export class HiveService implements OnModuleInit {
     const systemPrompt: HiveMessage = {
       role: 'system',
       content:
-        `You are an AI assistant that MUST respond ONLY with a valid JSON object matching the requested schema.${schemaInstruction}\nDo not include markdown code block backticks (\`\`\`json) or introductory explanations.`,
+        `You are an AI assistant that MUST respond ONLY with a valid JSON object matching the requested schema.${schemaInstruction}\nDo not include markdown code block backticks (\`\`\`json) or introductory explanations. Keep reasoning concise.`,
     };
 
     const enhancedMessages = [systemPrompt, ...rawMessages];
@@ -166,23 +166,70 @@ export class HiveService implements OnModuleInit {
         },
       });
 
-      const content = response.data?.choices?.[0]?.message?.content || '{}';
+      const choice = response.data?.choices?.[0];
+      const finishReason = choice?.finish_reason;
+      const content = choice?.message?.content;
       const usage = response.data?.usage || {};
+
+      // 1. Token Limit Guard đối với Reasoning Model
+      if (finishReason === 'length' && (!content || content.trim() === '')) {
+        this.logger.error('❌ Mô hình Hive cạn kiệt tokens trước khi kịp sinh content.');
+        throw new Error(
+          'Hive reasoning model token limit exceeded (finish_reason: length). Please reduce prompt length or chunk size.'
+        );
+      }
 
       let parsedJson: any;
       try {
         // Làm sạch chuỗi JSON nếu model sơ suất kẹp backticks ```json ... ```
-        const sanitizedContent = content.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+        const sanitizedContent = (content || '{}').replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
         parsedJson = JSON.parse(sanitizedContent);
       } catch (jsonErr: any) {
         this.logger.error(`❌ Hive trả về chuỗi JSON không hợp lệ: ${content}`);
         throw new Error(`Hive API returned invalid JSON: ${jsonErr.message}`);
       }
 
-      // Xác thực chặt chẽ bằng Zod Schema để bảo đảm Type Safety cho các Node phía sau
-      let validatedData = parsedJson;
+      // 2. Xác thực và Auto-healing (Định luật Postel: mềm dẻo với dữ liệu nhận về)
+      let validatedData: any;
       if (schema && typeof schema.parse === 'function') {
-        validatedData = schema.parse(parsedJson);
+        try {
+          validatedData = schema.parse(parsedJson);
+        } catch (firstErr: any) {
+          let healed = false;
+
+          // Biến thể A: LLM trả về array [...] thay vì { items: [...] }
+          if (Array.isArray(parsedJson)) {
+            try {
+              validatedData = schema.parse({ items: parsedJson });
+              healed = true;
+            } catch {}
+          }
+
+          // Biến thể B: LLM trả về { data: [...] } hoặc { keywords: [...] } thay vì { items: [...] }
+          if (!healed && parsedJson && typeof parsedJson === 'object') {
+            const arrayKey = Object.keys(parsedJson).find(k => Array.isArray(parsedJson[k]));
+            if (arrayKey && arrayKey !== 'items') {
+              try {
+                validatedData = schema.parse({ items: parsedJson[arrayKey] });
+                healed = true;
+              } catch {}
+            }
+          }
+
+          // Biến thể C: LLM chỉ trả về 1 object đơn lẻ { word: "...", explanation: "..." } thay vì { items: [{...}] }
+          if (!healed && parsedJson && typeof parsedJson === 'object' && parsedJson.word) {
+            try {
+              validatedData = schema.parse({ items: [parsedJson] });
+              healed = true;
+            } catch {}
+          }
+
+          if (!healed) {
+            throw firstErr;
+          }
+        }
+      } else {
+        validatedData = parsedJson;
       }
 
       return {
