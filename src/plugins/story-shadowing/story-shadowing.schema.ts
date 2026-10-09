@@ -16,7 +16,7 @@ export const YoutubeConsolidatedSchema = z.object({
       text: z.string(),
       startMs: z.number(),
       endMs: z.number(),
-      words: z.array(WordSchema),
+      words: z.array(WordSchema).optional().default([]),
     })
   ),
 });

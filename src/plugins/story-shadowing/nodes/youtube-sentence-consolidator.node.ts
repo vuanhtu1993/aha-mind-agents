@@ -19,8 +19,7 @@ Your task:
 2. For each merged sentence, calculate:
    - startMs: the 'start' value of the VERY FIRST block in that sentence.
    - endMs: the ('start' + 'duration') value of the VERY LAST block in that sentence.
-3. For each sentence, provide phonetic transcription (IPA) for EVERY word in the sentence as an array of { word, ipa }. Use broad IPA transcription. Attach punctuation to the preceding word.
-4. Classify the overall language difficulty of the text into "easy", "medium", or "hard".
+3. Classify the overall language difficulty of the text into "easy", "medium", or "hard".
    - easy: A1-A2, short sentences, basic vocabulary.
    - medium: B1-B2, some idioms, complex sentences.
    - hard: C1+, technical jargon, advanced grammar.
@@ -33,15 +32,15 @@ Output EXACTLY a JSON matching this schema:
       "id": 0,
       "text": "This is a merged sentence.",
       "startMs": 0,
-      "endMs": 4000,
-      "words": [{"word": "This", "ipa": "/ðɪs/"}, {"word": "is", "ipa": "/ɪz/"}, ...]
+      "endMs": 4000
     }
   ]
 }
 
-CRITICAL RULE:
-Do NOT paraphrase the text. Keep the exact original words, just fix the punctuation and capitalization to form proper sentences.
-Do NOT lose any audio gap, endMs MUST be the exact end time of the last block forming the sentence.`;
+CRITICAL RULES:
+1. Do NOT paraphrase the text. Keep the exact original words, just fix the punctuation and capitalization to form proper sentences.
+2. Do NOT lose any audio gap, endMs MUST be the exact end time of the last block forming the sentence.
+3. Keep reasoning brief and concise. Focus directly on sentence merging and time boundary calculation.`;
 
 @Injectable()
 export class YoutubeSentenceConsolidatorNode {
@@ -117,6 +116,9 @@ export class YoutubeSentenceConsolidatorNode {
           s.id = currentId++;
           s.startMs += offset;
           s.endMs += offset;
+          if (!s.words || s.words.length === 0) {
+            s.words = s.text.split(/\s+/).filter(Boolean).map((w: string) => ({ word: w, ipa: '' }));
+          }
           allSentences.push(s);
         }
       }
