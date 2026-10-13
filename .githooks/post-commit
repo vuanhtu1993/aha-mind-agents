@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# openlore-decisions-post-hook
+# Warn when the pre-commit gate was bypassed via --no-verify.
+# post-commit is NOT skipped by --no-verify (only pre-commit and commit-msg are).
+SENTINEL="$(git rev-parse --git-dir 2>/dev/null || echo .git)/OPENLORE_GATE_RAN"
+if [ -f "$SENTINEL" ]; then
+  rm -f "$SENTINEL"
+else
+  echo "" >&2
+  echo "⚠️  openlore: pre-commit gate was bypassed (--no-verify)." >&2
+  echo "    Architectural decisions were NOT reviewed for this commit." >&2
+  echo "    Run: openlore decisions --consolidate --gate" >&2
+  echo "" >&2
+fi
+# end-openlore-decisions-post-hook

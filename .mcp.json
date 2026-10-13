@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "openlore": {
+      "command": "/Users/anhtus/.nvm/versions/node/v24.13.0/bin/node",
+      "args": [
+        "/Users/anhtus/.nvm/versions/node/v24.13.0/lib/node_modules/openlore/dist/cli/index.js",
+        "mcp",
+        "--preset",
+        "substrate"
+      ]
+    }
+  },
+  "_openlore": {
+    "managed": true,
+    "version": 1,
+    "fingerprint": "c9c47024312b087b",
+    "paths": [
+      "mcpServers.openlore"
+    ]
+  }
+}

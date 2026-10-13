@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "_openlore": true,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/anhtus/.nvm/versions/node/v24.13.0/bin/node /Users/anhtus/.nvm/versions/node/v24.13.0/lib/node_modules/openlore/dist/cli/index.js orient --json"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "_openlore": true,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/anhtus/.nvm/versions/node/v24.13.0/bin/node /Users/anhtus/.nvm/versions/node/v24.13.0/lib/node_modules/openlore/dist/cli/index.js orient --inject"
+          }
+        ]
+      }
+    ]
+  }
+}

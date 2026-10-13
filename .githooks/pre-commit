@@ -51,4 +51,17 @@ echo "${GREEN}[pre-commit] Build thành công! Đã tự động stage các file
 echo "${GREEN}             Đang tiến hành commit...${RESET}"
 echo ""
 
-exit 0
+# openlore-decisions-hook
+# Gate commits until architectural decisions are reviewed.
+# Installed by: openlore setup --tools claude
+
+# Pin the trusted installation that created this hook. Never execute mutable
+# node_modules/dist content from the repository being committed.
+'/Users/anhtus/.nvm/versions/node/v24.13.0/bin/node' '/Users/anhtus/.nvm/versions/node/v24.13.0/lib/node_modules/openlore/dist/cli/index.js' 'decisions' '--gate' 2>&1
+DECISIONS_EXIT=$?
+if [ "$DECISIONS_EXIT" -ne 0 ]; then
+  exit "$DECISIONS_EXIT"
+fi
+# Sentinel written on successful gate pass. Post-commit checks for its absence to detect --no-verify bypass.
+touch "$(git rev-parse --git-dir 2>/dev/null || echo .git)/OPENLORE_GATE_RAN" 2>/dev/null || true
+# end-openlore-decisions-hook
