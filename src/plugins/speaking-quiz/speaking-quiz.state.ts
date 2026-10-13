@@ -6,7 +6,7 @@
  */
 
 import { Annotation } from '@langchain/langgraph';
-import { PrepSynthesizerOutput } from './speaking-quiz.schema';
+import { PrepSynthesizerOutput, AdaptiveScaffoldOutput } from './speaking-quiz.schema';
 
 export interface TargetKeywordItemType {
   word: string;
@@ -40,6 +40,9 @@ export const SpeakingQuizState = Annotation.Root({
   // LLM Outputs (Node 2 & Node 3)
   generatedQuestion: Annotation<string | undefined>(),
   prepScaffold: Annotation<PrepSynthesizerOutput | undefined>({
+    reducer: (_, y) => y,
+  }),
+  adaptiveScaffold: Annotation<AdaptiveScaffoldOutput | undefined>({
     reducer: (_, y) => y,
   }),
 
