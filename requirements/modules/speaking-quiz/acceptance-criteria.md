@@ -97,4 +97,20 @@ Scenario: Truy vấn chi tiết câu hỏi và giàn giáo phản xạ
 
 ---
 
+### AC-QUIZ-06: Lồng ghép từ vựng FSRS đến hạn vào giàn giáo PREP
+- **User Story tương ứng:** [`US-QUIZ-01`](spec.md#us-quiz-01)
+- **Quy tắc Nghiệp vụ:** [`BR-03`](../../global/business-rules.md#2-danh-muc-quy-tac-nghiep-vu-cot-loi)
+
+```gherkin
+Scenario: Tự động bơm từ vựng FSRS cần ôn vào giàn giáo câu trả lời mẫu
+  Given hệ thống có từ vựng đến hạn ôn tập từ "VocabReviewService.getCandidateDueVocab"
+  When Worker thực thi LangGraph sinh câu hỏi Speaking Quiz
+  Then Danh sách "targetKeywords" chứa từ vựng được bơm với "isInjected": true và "srsStatus": "due"
+    And Toàn bộ câu trả lời mẫu "modelAnswer" của 4 giai đoạn PREP phải tự nhiên lồng ghép ít nhất 2 từ vựng mục tiêu
+    And Bản ghi được lưu hợp lệ vào collection "speaking_questions"
+```
+
+---
+
 *Made by Anh Tu - Share to be share*
+

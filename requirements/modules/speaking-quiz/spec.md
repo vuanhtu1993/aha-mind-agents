@@ -30,23 +30,24 @@ Nhiều người học tiếng Anh sau khi luyện nghe hoặc luyện Shadowing
 | **FR-QUIZ-03** | Tái sử dụng câu hỏi (Idempotency) | Học viên / Tác giả | `forceRegenerate === false` | Trả về câu hỏi có sẵn trong $< 50\text{ms}$, tiết kiệm 100% Token | [`POST /api/agents/speaking-quiz/jobs`](api-contract.md#11-post-apiagentsspeaking-quizjobs) | [`AC-QUIZ-03`](acceptance-criteria.md#ac-quiz-03) |
 | **FR-QUIZ-04** | Theo dõi tiến độ sinh câu hỏi qua SSE | Học viên / Client | `jobId` hợp lệ | Nhận luồng SSE với % tiến độ và giai đoạn xử lý | [`GET /api/agents/speaking-quiz/jobs/:jobId/progress`](api-contract.md#12-get-apiagentsspeaking-quizjobsjobidprogress) | [`AC-QUIZ-04`](acceptance-criteria.md#ac-quiz-04) |
 | **FR-QUIZ-05** | Truy vấn chi tiết câu hỏi theo ID | Học viên / Client | `id` câu hỏi tồn tại | Trả về câu hỏi, từ vựng trọng tâm và giàn giáo PREP hoàn chỉnh | [`GET /api/agents/speaking-quiz/questions/:id`](api-contract.md#13-get-apiagentsspeaking-quizquestionsid) | [`AC-QUIZ-05`](acceptance-criteria.md#ac-quiz-05) |
+| **FR-QUIZ-06** | Lồng ghép từ vựng FSRS đến hạn | Hệ thống Worker | `vocab_cards` có từ đến hạn hoặc đang học | Tự động bơm 1-3 từ vựng FSRS vào `targetKeywords` (`isInjected: true`) và lồng ghép ít nhất 2 từ vào câu mẫu PREP | [`POST /api/agents/speaking-quiz/jobs`](api-contract.md#11-post-apiagentsspeaking-quizjobs) | [`AC-QUIZ-06`](acceptance-criteria.md#ac-quiz-06) |
 
 ---
 
 ## 3. Câu Chuyện Người Dùng (User Stories)
 
-### US-QUIZ-01: Sinh câu hỏi Speaking phản xạ kèm giàn giáo PREP
+### US-QUIZ-01: Sinh câu hỏi Speaking phản xạ kèm giàn giáo PREP & Từ vựng FSRS
 - **Mã:** `US-QUIZ-01`
 - **Tác nhân:** Học viên / Giáo viên
 - **Mức độ ưu tiên:** Bắt buộc (Must-have)
-- **Ánh xạ FR:** [`FR-QUIZ-01`](#2-yeu-cau-chuc-nang), [`FR-QUIZ-02`](#2-yeu-cau-chuc-nang), [`FR-QUIZ-03`](#2-yeu-cau-chuc-nang)
+- **Ánh xạ FR:** [`FR-QUIZ-01`](#2-yeu-cau-chuc-nang), [`FR-QUIZ-02`](#2-yeu-cau-chuc-nang), [`FR-QUIZ-03`](#2-yeu-cau-chuc-nang), [`FR-QUIZ-06`](#2-yeu-cau-chuc-nang)
 - **Ánh xạ API:** [`POST /api/agents/speaking-quiz/jobs`](api-contract.md#11-post-apiagentsspeaking-quizjobs)
-- **Ánh xạ AC:** [`AC-QUIZ-01`](acceptance-criteria.md#ac-quiz-01), [`AC-QUIZ-03`](acceptance-criteria.md#ac-quiz-03)
+- **Ánh xạ AC:** [`AC-QUIZ-01`](acceptance-criteria.md#ac-quiz-01), [`AC-QUIZ-03`](acceptance-criteria.md#ac-quiz-03), [`AC-QUIZ-06`](acceptance-criteria.md#ac-quiz-06)
 
 **Lời tuyên bố câu chuyện (User Story Statement):**
-> **Là một** học viên vừa hoàn thành bài học Shadowing,  
-> **Tôi muốn** hệ thống tạo ra một câu hỏi luyện nói tình huống bám sát chủ đề bài đọc,  
-> **Để** tôi có thể luyện tập phát biểu theo cấu trúc PREP bài bản, tự tin phản xạ mà không bị bí từ hay bí ý.
+> **Là một** học viên vừa hoàn thành bài học Shadowing hoặc đang ôn tập từ vựng,  
+> **Tôi muốn** hệ thống tạo ra một câu hỏi luyện nói tình huống bám sát chủ đề bài đọc và tự động lồng ghép các từ vựng tôi đang cần ôn tập vào giàn giáo PREP,  
+> **Để** tôi có thể luyện tập phát biểu theo cấu trúc PREP bài bản, kích hoạt vốn từ chủ động và tự tin phản xạ mà không bị bí từ hay bí ý.
 
 #### Sơ Đồ Trình Tự (Sequence Diagram)
 ```mermaid
@@ -55,6 +56,7 @@ sequenceDiagram
     actor Learner as Học viên / Client UI
     participant GW as Gateway Controller
     participant DB as MongoDB (speaking_questions)
+    participant VocabSvc as VocabReviewService (FSRS)
     participant Queue as Redis BullMQ
     participant Worker as SpeakingQuizWorker (LangGraph)
     participant Gemini as Google Gemini 2.5
@@ -70,9 +72,11 @@ sequenceDiagram
         
         Queue->>Worker: Worker nhận Job và khởi chạy LangGraph
         Worker->>DB: Lấy nội dung gốc từ storybooks
-        Worker->>Worker: context_resolved (Tiến độ 25%)
+        Worker->>VocabSvc: getCandidateDueVocab({ limit: 3 })
+        VocabSvc-->>Worker: Trả về danh sách từ vựng FSRS đến hạn
+        Worker->>Worker: context_resolved: Hợp nhất targetKeywords & gắn isInjected (Tiến độ 25%)
         Worker->>Gemini: question_formulated: Đặt câu hỏi kích thích tư duy (50%)
-        Worker->>Gemini: prep_synthesized: Xây dựng giàn giáo PREP 4 pha (80%)
+        Worker->>Gemini: prep_synthesized: Xây dựng giàn giáo PREP 4 pha lồng ghép ít nhất 2 từ vựng (80%)
         Worker->>DB: Lưu câu hỏi vào collection 'speaking_questions' (100%)
         Worker->>Queue: Phát sự kiện 'completed' kèm questionId
     end
@@ -81,3 +85,4 @@ sequenceDiagram
 ---
 
 *Made by Anh Tu - Share to be share*
+

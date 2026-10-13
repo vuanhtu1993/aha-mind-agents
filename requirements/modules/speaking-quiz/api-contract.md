@@ -96,7 +96,13 @@
       "question": "Do you believe mastering small talk is essential for career advancement? Why or why not?",
       "level": "B2",
       "targetKeywords": [
-        { "word": "rapport", "ipa": "/ræˈpɔːr/", "meaning": "Mối quan hệ hòa hợp, thấu hiểu lẫn nhau" }
+        {
+          "word": "rapport",
+          "ipa": "/ræˈpɔːr/",
+          "meaning": "Mối quan hệ hòa hợp, thấu hiểu lẫn nhau",
+          "srsStatus": "due",
+          "isInjected": true
+        }
       ],
       "prepScaffold": {
         "point": {

@@ -10,6 +10,7 @@
 
 | Phiên bản | Ngày phát hành | Tác giả / Vai trò | Tóm tắt Nội dung Thay đổi |
 |---|---|---|---|
+| **1.1.0** | 2026-10-13 | Anh Tú (Technical Architect) | Bổ sung Bounded Context mới `modules/vocab-review` (Decoupled FSRS v4 Engine, 3-tier Distractor Pool, Review Session APIs) và cập nhật `modules/speaking-quiz` với tính năng `FR-QUIZ-06` (Bơm từ vựng FSRS đến hạn vào giàn giáo PREP). Cập nhật ERD và Data Dictionary toàn cục (`vocab_cards`, `vocab_review_logs`, `targetKeywords`). |
 | **1.0.0** | 2026-10-13 | Anh Tú (Technical Architect) | Khởi tạo hoàn chỉnh bộ đặc tả kiến trúc Option C (Enterprise Granular Architecture) cho `aha-mind-agents`: 3 tầng cấu trúc (`global/`, `modules/`, `governance/`), 4 Bounded Contexts, 5 ADRs và quy tắc JIT routing. |
 
 ---

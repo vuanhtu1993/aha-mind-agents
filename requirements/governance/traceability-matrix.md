@@ -44,6 +44,7 @@ graph LR
 | **FR-QUIZ-03** | Tái sử dụng Idempotency | [`US-QUIZ-01`](../modules/speaking-quiz/spec.md#us-quiz-01) | [`AC-QUIZ-03`](../modules/speaking-quiz/acceptance-criteria.md#ac-quiz-03) | [`POST /jobs`](../modules/speaking-quiz/api-contract.md#11-post-apiagentsspeaking-quizjobs) | `speaking-quiz.worker.spec.ts` | ✅ Sẵn sàng |
 | **FR-QUIZ-04** | Luồng tiến độ SSE | [`US-QUIZ-01`](../modules/speaking-quiz/spec.md#us-quiz-01) | [`AC-QUIZ-04`](../modules/speaking-quiz/acceptance-criteria.md#ac-quiz-04) | [`GET /jobs/:id/progress`](../modules/speaking-quiz/api-contract.md#12-get-apiagentsspeaking-quizjobsjobidprogress) | `speaking-quiz.controller.ts` | ✅ Sẵn sàng |
 | **FR-QUIZ-05** | Truy vấn câu hỏi PREP | [`US-QUIZ-01`](../modules/speaking-quiz/spec.md#us-quiz-01) | [`AC-QUIZ-05`](../modules/speaking-quiz/acceptance-criteria.md#ac-quiz-05) | [`GET /questions/:id`](../modules/speaking-quiz/api-contract.md#13-get-apiagentsspeaking-quizquestionsid) | `speaking-question.schema.spec.ts` | ✅ Sẵn sàng |
+| **FR-QUIZ-06** | Lồng ghép từ vựng FSRS | [`US-QUIZ-01`](../modules/speaking-quiz/spec.md#us-quiz-01) | [`AC-QUIZ-06`](../modules/speaking-quiz/acceptance-criteria.md#ac-quiz-06) | [`POST /jobs`](../modules/speaking-quiz/api-contract.md#11-post-apiagentsspeaking-quizjobs) | `prep-synthesizer.node.spec.ts` | ✅ Sẵn sàng |
 
 ---
 
@@ -68,4 +69,15 @@ graph LR
 
 ---
 
+### 2.5. Module: Vocab Review (`VOCAB`)
+| Mã FR | Tên Tính Năng | User Story | Tiêu Chí Chấp Nhận (AC) | Hợp Đồng API | Mã Nguồn / Kiểm Thử | Trạng Thái |
+|---|---|---|---|---|---|---|
+| **FR-VOCAB-01** | Sinh phiên trắc nghiệm | [`US-VOCAB-01`](../modules/vocab-review/spec.md#us-vocab-01) | [`AC-VOCAB-01`](../modules/vocab-review/acceptance-criteria.md#ac-vocab-01) | [`GET /session`](../modules/vocab-review/api-contract.md#11-get-apivocabreviewsession) | `vocab-review.service.spec.ts` | ✅ Sẵn sàng |
+| **FR-VOCAB-02** | Nộp kết quả & FSRS | [`US-VOCAB-01`](../modules/vocab-review/spec.md#us-vocab-01) | [`AC-VOCAB-02`](../modules/vocab-review/acceptance-criteria.md#ac-vocab-02) | [`POST /submit`](../modules/vocab-review/api-contract.md#12-post-apivocabreviewsubmit) | `fsrs.service.spec.ts` | ✅ Sẵn sàng |
+| **FR-VOCAB-03** | Thống kê từ đến hạn | [`US-VOCAB-01`](../modules/vocab-review/spec.md#us-vocab-01) | [`AC-VOCAB-03`](../modules/vocab-review/acceptance-criteria.md#ac-vocab-03) | [`GET /due-count`](../modules/vocab-review/api-contract.md#13-get-apivocabreviewdue-count) | `vocab-review.controller.spec.ts` | ✅ Sẵn sàng |
+| **FR-VOCAB-04** | Trích xuất ứng viên SRS | [`US-VOCAB-02`](../modules/vocab-review/spec.md#us-vocab-02) | [`AC-VOCAB-04`](../modules/vocab-review/acceptance-criteria.md#ac-vocab-04) | Nội bộ Service | `context-resolver.node.spec.ts` | ✅ Sẵn sàng |
+
+---
+
 *Made by Anh Tu - Share to be share*
+

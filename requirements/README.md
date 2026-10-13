@@ -21,8 +21,9 @@ graph TD
         
         M["2. modules/<name>/ (Micro-Specs Theo Vai Trò)"] --> M1["story-shadowing/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
         M --> M2["speaking-quiz/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
-        M --> M3["agent-orchestrator/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
-        M --> M4["dashboard-observability/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
+        M --> M3["vocab-review/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
+        M --> M4["agent-orchestrator/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
+        M --> M5["dashboard-observability/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
         
         Gov["3. governance/ (Quản Trị Chất Lượng & Kiến Trúc)"] --> Gov1["traceability-matrix.md (Ma trận RTM Hai Chiều)"]
         Gov --> Gov2["nfr.md (10 Chỉ số Yêu cầu Phi Chức Năng)"]
@@ -63,9 +64,13 @@ graph TD
   * 🔌 [`api-contract.md`](modules/story-shadowing/api-contract.md) — Hợp đồng HTTP REST & SSE Streaming cho lập trình viên.
   * ✅ [`acceptance-criteria.md`](modules/story-shadowing/acceptance-criteria.md) — Bộ tiêu chí chấp nhận chuẩn Gherkin cho QA Automation.
 * 🧩 **Speaking Quiz Module (`modules/speaking-quiz/`):**
-  * 📋 [`spec.md`](modules/speaking-quiz/spec.md) — Đặc tả phương pháp giàn giáo tư duy phản biện PREP Framework.
+  * 📋 [`spec.md`](modules/speaking-quiz/spec.md) — Đặc tả phương pháp giàn giáo tư duy phản biện PREP Framework và tích hợp FSRS.
   * 🔌 [`api-contract.md`](modules/speaking-quiz/api-contract.md) — Hợp đồng tạo Job sinh câu hỏi và truy vấn chi tiết.
-  * ✅ [`acceptance-criteria.md`](modules/speaking-quiz/acceptance-criteria.md) — Tiêu chí nghiệm lưu trữ và tự động thử lại khi thiếu thành phần PREP.
+  * ✅ [`acceptance-criteria.md`](modules/speaking-quiz/acceptance-criteria.md) — Tiêu chí nghiệm lưu trữ, tự động thử lại khi thiếu thành phần PREP và bơm từ vựng FSRS.
+* 🧩 **Vocab Review Module (`modules/vocab-review/`):**
+  * 📋 [`spec.md`](modules/vocab-review/spec.md) — Đặc tả động cơ ôn tập giãn cách FSRS v4, 3-tier Distractor Pool và tuần hoàn Speaking.
+  * 🔌 [`api-contract.md`](modules/vocab-review/api-contract.md) — Hợp đồng HTTP REST (Session, Submit, Due Count) và Service Interface nội bộ.
+  * ✅ [`acceptance-criteria.md`](modules/vocab-review/acceptance-criteria.md) — Tiêu chí nghiệm thu thuật toán FSRS, sinh phương án nhiễu và bơm từ vựng.
 * 🧩 **Agent Orchestrator Module (`modules/agent-orchestrator/`):**
   * 📋 [`spec.md`](modules/agent-orchestrator/spec.md) — Đặc tả động cơ điều phối hợp nhất, Open-Closed Plugin Architecture.
   * 🔌 [`api-contract.md`](modules/agent-orchestrator/api-contract.md) — Hợp đồng `/api/agents/:agentId/:pipeline` và khám phá plugin.
