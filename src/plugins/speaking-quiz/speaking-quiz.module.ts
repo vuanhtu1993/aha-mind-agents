@@ -21,6 +21,7 @@ import { SpeakingQuizPlugin } from './speaking-quiz.plugin';
 import { SpeakingQuizWorker } from './speaking-quiz.worker';
 import { SpeakingQuizService } from './speaking-quiz.service';
 import { SpeakingQuizController } from './speaking-quiz.controller';
+import { VocabReviewModule } from '../vocab-review/vocab-review.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { SpeakingQuizController } from './speaking-quiz.controller';
     BullModule.registerQueue({
       name: 'speaking-quiz-queue',
     }),
+    VocabReviewModule,
   ],
   controllers: [SpeakingQuizController],
   providers: [

@@ -11,6 +11,7 @@ import { Model } from 'mongoose';
 import { AHA_TOOLS_CONNECTION } from '../../../infra/database/database.constants';
 import { Storybook } from '../../../infra/database/schemas/storybook.schema';
 import { SpeakingQuizStateType, TargetKeywordItemType } from '../speaking-quiz.state';
+import { VocabReviewService } from '../../vocab-review/services/vocab-review.service';
 
 @Injectable()
 export class ContextResolverNode {
@@ -19,12 +20,29 @@ export class ContextResolverNode {
   constructor(
     @InjectModel(Storybook.name, AHA_TOOLS_CONNECTION)
     private readonly storybookModel: Model<Storybook>,
+    private readonly vocabReviewService?: VocabReviewService,
   ) { }
 
   public async invoke(state: SpeakingQuizStateType): Promise<Partial<SpeakingQuizStateType>> {
     if (state.error) return {};
 
     const level = state.requestedLevel || 'B2';
+
+    // Trích xuất candidate due vocab từ FSRS engine (nếu có)
+    let candidateDueVocab: TargetKeywordItemType[] = [];
+    if (this.vocabReviewService) {
+      try {
+        const candidates = await this.vocabReviewService.getCandidateDueVocab({ limit: 3 });
+        candidateDueVocab = candidates.map(c => ({
+          word: c.word,
+          meaning: c.explanation,
+          srsStatus: c.srsStatus,
+          isInjected: true,
+        }));
+      } catch (err: any) {
+        this.logger.warn(`Không thể lấy candidate due vocab: ${err.message}`);
+      }
+    }
 
     // 1. Phân giải ngữ cảnh từ Storybook
     if (state.storybookId) {
@@ -68,6 +86,13 @@ export class ContextResolverNode {
           }
         }
 
+        // Hợp nhất candidate due vocab vào danh sách targetKeywords
+        for (const cv of candidateDueVocab) {
+          if (!targetKeywords.some(tk => tk.word.toLowerCase() === cv.word.toLowerCase())) {
+            targetKeywords.push(cv);
+          }
+        }
+
         this.logger.log(`✅ Phân giải Storybook thành công: "${resolvedTopic}" với ${targetKeywords.length} từ vựng mục tiêu.`);
 
         return {
@@ -91,7 +116,14 @@ export class ContextResolverNode {
         meaning: `Core concept: ${w.trim()}`,
       }));
 
-      this.logger.log(`✅ Phân giải Custom Topic thành công: "${resolvedTopic}"`);
+      // Hợp nhất candidate due vocab vào danh sách targetKeywords
+      for (const cv of candidateDueVocab) {
+        if (!targetKeywords.some(tk => tk.word.toLowerCase() === cv.word.toLowerCase())) {
+          targetKeywords.push(cv);
+        }
+      }
+
+      this.logger.log(`✅ Phân giải Custom Topic thành công: "${resolvedTopic}" với ${targetKeywords.length} từ vựng mục tiêu.`);
 
       return {
         resolvedTopic,

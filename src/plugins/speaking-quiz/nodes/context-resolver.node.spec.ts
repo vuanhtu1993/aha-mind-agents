@@ -1,19 +1,34 @@
 import { ContextResolverNode } from './context-resolver.node';
 import { Model } from 'mongoose';
 import { Storybook } from '../../../infra/database/schemas/storybook.schema';
+import { VocabReviewService } from '../../vocab-review/services/vocab-review.service';
 
 describe('ContextResolverNode', () => {
   let node: ContextResolverNode;
   let mockStorybookModel: Partial<Model<Storybook>>;
+  let mockVocabReviewService: Partial<VocabReviewService>;
 
   beforeEach(() => {
     mockStorybookModel = {
       findById: jest.fn(),
     };
-    node = new ContextResolverNode(mockStorybookModel as Model<Storybook>);
+    mockVocabReviewService = {
+      getCandidateDueVocab: jest.fn().mockResolvedValue([
+        {
+          word: 'sustainable',
+          explanation: 'Able to be maintained',
+          level: 'B2',
+          srsStatus: 'due',
+        },
+      ]),
+    };
+    node = new ContextResolverNode(
+      mockStorybookModel as Model<Storybook>,
+      mockVocabReviewService as VocabReviewService,
+    );
   });
 
-  it('should resolve storybook context with sentences and keywords', async () => {
+  it('should resolve storybook context with sentences, keywords and injected due vocab', async () => {
     const mockDoc = {
       _id: '679c1a2b3c4d5e6f7a8b9c0d',
       title: 'The Future of Renewable Energy',
@@ -38,9 +53,11 @@ describe('ContextResolverNode', () => {
 
     expect(result.resolvedTopic).toBe('The Future of Renewable Energy');
     expect(result.sourceContentSummary).toContain('Renewable energy');
-    expect(result.targetKeywords?.length).toBe(2);
+    expect(result.targetKeywords?.length).toBeGreaterThanOrEqual(2);
     expect(result.level).toBe('B2');
     expect(result.error).toBeUndefined();
+    // Candidate word 'sustainable' should be injected with srsStatus: 'due'
+    expect(result.targetKeywords?.some(k => k.word === 'sustainable' && k.srsStatus === 'due')).toBeTruthy();
   });
 
   it('should return error when storybook is not found', async () => {
@@ -56,7 +73,7 @@ describe('ContextResolverNode', () => {
     expect(result.error).toContain('Storybook không tồn tại');
   });
 
-  it('should resolve custom topic directly when no storybookId provided', async () => {
+  it('should resolve custom topic and inject due vocab into targetKeywords', async () => {
     const result = await node.invoke({
       customTopic: 'Work from Home Pros and Cons',
       requestedLevel: 'C1',
@@ -65,7 +82,7 @@ describe('ContextResolverNode', () => {
 
     expect(result.resolvedTopic).toBe('Work from Home Pros and Cons');
     expect(result.level).toBe('C1');
-    expect(result.targetKeywords?.length).toBe(2);
-    expect(result.targetKeywords?.[0].word).toBe('productivity');
+    expect(result.targetKeywords?.length).toBeGreaterThanOrEqual(2);
+    expect(result.targetKeywords?.some(k => k.word === 'sustainable' && k.srsStatus === 'due')).toBeTruthy();
   });
 });

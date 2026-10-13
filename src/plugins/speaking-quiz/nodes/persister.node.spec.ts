@@ -33,6 +33,18 @@ describe('PersisterNode', () => {
 
     expect(result.persistedId).toBe('67a8b9c0f123456789abcdef');
     expect(result.error).toBeUndefined();
+    expect(mockSpeakingQuestionModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetKeywords: [
+          expect.objectContaining({
+            word: 'evaluate',
+            meaning: 'assess',
+            srsStatus: undefined,
+            isInjected: false,
+          }),
+        ],
+      }),
+    );
   });
 
   it('should return error when mandatory state data is missing', async () => {

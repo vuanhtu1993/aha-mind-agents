@@ -21,7 +21,7 @@ Each of the 4 stages must strictly contain:
 4. "modelAnswer": A natural, high-scoring sample sentence conforming to CEFR level {LEVEL}.
 
 CRITICAL INTEGRATION RULE:
-Incorporate at least 2 of the target vocabulary items naturally into the model answers across the 4 stages.`;
+Incorporate at least 2 of the target vocabulary items naturally into the model answers across the 4 stages. If a word cannot naturally fit into the "Point" stage, integrate it smoothly into the "Reason" or "Example" stage of the PREP scaffold.`;
 
 @Injectable()
 export class PrepSynthesizerNode {

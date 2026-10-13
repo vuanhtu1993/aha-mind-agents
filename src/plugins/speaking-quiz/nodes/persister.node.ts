@@ -39,6 +39,8 @@ export class PersisterNode {
           word: k.word,
           ipa: k.ipa,
           meaning: k.meaning,
+          srsStatus: k.srsStatus,
+          isInjected: k.isInjected ?? false,
         })),
         prepScaffold: {
           point: { stage: 'point', ...state.prepScaffold.point },

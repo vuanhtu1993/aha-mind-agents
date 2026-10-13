@@ -26,7 +26,9 @@ Pedagogical Rules:
    - B1: Clear, straightforward moral or daily life choices (simple syntax).
    - B2: Contemporary societal issues, balancing advantages vs disadvantages.
    - C1: Complex ethical, philosophical, or systemic trade-offs.
-5. Output must strictly conform to the required JSON schema.`;
+5. TARGET VOCABULARY INTEGRATION:
+   - When feasible, naturally incorporate or pivot around the provided target vocabulary keywords without sacrificing punchiness (< 20 words).
+6. Output must strictly conform to the required JSON schema.`;
 
 @Injectable()
 export class QuestionFormulatorNode {
