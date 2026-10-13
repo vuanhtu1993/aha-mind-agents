@@ -129,4 +129,25 @@ export class SpeakingQuizService {
   public async getJob(jobId: string) {
     return this.queue.getJob(jobId);
   }
+
+  public async getJobStatus(jobId: string) {
+    const job = await this.getJob(jobId);
+    if (!job) {
+      throw new NotFoundException(`Không tìm thấy Job với ID: ${jobId}`);
+    }
+
+    const state = await job.getState();
+    const progress = typeof job.progress === "number" ? job.progress : 0;
+    const returnvalue = job.returnvalue || null;
+    const failedReason = job.failedReason || null;
+
+    return {
+      jobId,
+      status: state,
+      progress,
+      result: returnvalue,
+      error: failedReason,
+      createdAt: job.timestamp ? new Date(job.timestamp).toISOString() : new Date().toISOString(),
+    };
+  }
 }

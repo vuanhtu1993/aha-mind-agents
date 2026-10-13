@@ -41,6 +41,13 @@ export class SpeakingQuizController {
     return this.speakingQuizService.createJob(dto);
   }
 
+  @Get('jobs/:jobId')
+  @ApiOperation({ summary: 'Lấy trạng thái chi tiết của Job sinh đề bài Speaking Quiz' })
+  @ApiParam({ name: 'jobId', description: 'Mã định danh của Job trong hàng đợi BullMQ' })
+  async getJobStatus(@Param('jobId') jobId: string) {
+    return this.speakingQuizService.getJobStatus(jobId);
+  }
+
   @Get('jobs/:jobId/progress')
   @ApiOperation({ summary: 'Lắng nghe tiến trình thời gian thực của Job qua Server-Sent Events' })
   @ApiParam({ name: 'jobId', description: 'Mã định danh của Job' })
@@ -58,15 +65,22 @@ export class SpeakingQuizController {
     if (existingJob) {
       const state = await existingJob.getState();
       if (state === 'completed') {
+        const result = existingJob.returnvalue;
         res.write(`data: ${JSON.stringify({
           jobId,
+          status: 'done',
           progress: 100,
           stage: 'completed',
           message: 'Speaking quiz successfully created and saved',
-          result: existingJob.returnvalue,
+          payload: result,
+          result,
           timestamp: new Date().toISOString(),
         })}\n\n`);
-        res.end();
+        setTimeout(() => {
+          try {
+            res.end();
+          } catch {}
+        }, 100);
         return;
       }
     }
@@ -77,8 +91,12 @@ export class SpeakingQuizController {
         res.write(`data: ${JSON.stringify(event.data || event)}\n\n`);
 
         if (event.type === 'JOB_COMPLETED' || event.type === 'JOB_FAILED') {
-          subscription.unsubscribe();
-          res.end();
+          setTimeout(() => {
+            subscription.unsubscribe();
+            try {
+              res.end();
+            } catch {}
+          }, 100);
         }
       }
     });

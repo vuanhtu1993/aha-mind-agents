@@ -28,6 +28,19 @@ describe('SpeakingQuizController', () => {
     );
   });
 
+  it('should get job status by id', async () => {
+    (mockService as any).getJobStatus = jest.fn().mockResolvedValue({
+      jobId: 'job-sq-123',
+      status: 'completed',
+      progress: 100,
+      result: { questionId: 'q123' },
+    });
+
+    const result = await controller.getJobStatus('job-sq-123');
+    expect(result.jobId).toBe('job-sq-123');
+    expect(result.status).toBe('completed');
+  });
+
   it('should return 202 accepted response on job creation', async () => {
     const result = await controller.createJob({
       storybookId: 'sb123',

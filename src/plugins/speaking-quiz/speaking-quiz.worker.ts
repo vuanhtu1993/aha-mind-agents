@@ -49,36 +49,49 @@ export class SpeakingQuizWorker extends WorkerHost {
 
       await new Promise<void>((resolve, reject) => {
         stream$.subscribe({
-          next: async (event) => {
+          next: (event) => {
+            // Gán finalResult đồng bộ ngay khi nhận event hoàn tất
+            if (event.status === 'done' && event.payload) {
+              finalResult = event.payload;
+            } else if (event.payload?.questionId && !finalResult) {
+              finalResult = event.payload;
+            }
+
             if (event.progress !== undefined) {
-              await job.updateProgress(event.progress);
+              job.updateProgress(event.progress).catch(() => {});
             }
 
             // Broadcast tiến trình qua Redis Pub/Sub cho SSE subscribers
-            await this.redisPubSub.publishEvent({
-              type: 'JOB_STEP',
+            this.redisPubSub.publishEvent({
+              type: event.status === 'done' ? 'JOB_COMPLETED' : 'JOB_STEP',
               jobId,
               pluginId: 'speaking-quiz',
               timestamp: Date.now(),
               data: event,
+            }).catch((err) => {
+              this.logger.error(`Redis publish error: ${err.message}`);
             });
-
-            if (event.status === 'done') {
-              finalResult = event.payload;
-            }
           },
           error: (err) => reject(err),
           complete: () => resolve(),
         });
       });
 
+      // Bắn sự kiện tổng kết cuối cùng với payload đầy đủ
       await this.redisPubSub.publishEvent({
         type: 'JOB_COMPLETED',
         jobId,
         pluginId: 'speaking-quiz',
         pipeline: 'generate',
         timestamp: Date.now(),
-        data: finalResult,
+        data: {
+          jobId,
+          status: 'done',
+          progress: 100,
+          message: 'Speaking quiz generation completed',
+          payload: finalResult,
+          result: finalResult,
+        },
       });
 
       this.logger.log(`✅ Hoàn thành Job [${jobId}] thành công.`);
