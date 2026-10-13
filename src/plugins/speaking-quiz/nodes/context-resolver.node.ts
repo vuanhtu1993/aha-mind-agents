@@ -28,22 +28,6 @@ export class ContextResolverNode {
 
     const level = state.requestedLevel || 'B2';
 
-    // Trích xuất candidate due vocab từ FSRS engine (nếu có)
-    let candidateDueVocab: TargetKeywordItemType[] = [];
-    if (this.vocabReviewService) {
-      try {
-        const candidates = await this.vocabReviewService.getCandidateDueVocab({ limit: 3 });
-        candidateDueVocab = candidates.map(c => ({
-          word: c.word,
-          meaning: c.explanation,
-          srsStatus: c.srsStatus,
-          isInjected: true,
-        }));
-      } catch (err: any) {
-        this.logger.warn(`Không thể lấy candidate due vocab: ${err.message}`);
-      }
-    }
-
     // 1. Phân giải ngữ cảnh từ Storybook
     if (state.storybookId) {
       this.logger.log(`Đang truy vấn bài học Storybook: ${state.storybookId}`);
@@ -59,13 +43,15 @@ export class ContextResolverNode {
           ? sentenceTexts.slice(0, 10).join(' ')
           : storybook.originalText || resolvedTopic;
 
-        // Trích xuất 2-3 target keywords từ danh sách keywords của Storybook
+        // Trích xuất 2-3 target keywords từ danh sách keywords bản địa của Storybook
         let targetKeywords: TargetKeywordItemType[] = [];
         if (storybook.keywords && storybook.keywords.length > 0) {
           targetKeywords = storybook.keywords.slice(0, 3).map((k: any) => ({
             word: k.word,
             ipa: k.ipa || undefined,
             meaning: k.explanation || k.word,
+            srsStatus: 'unsaved',
+            isInjected: false,
           }));
         }
 
@@ -81,15 +67,10 @@ export class ContextResolverNode {
               targetKeywords.push({
                 word: w,
                 meaning: `Key terminology in context: ${w}`,
+                srsStatus: 'unsaved',
+                isInjected: false,
               });
             }
-          }
-        }
-
-        // Hợp nhất candidate due vocab vào danh sách targetKeywords
-        for (const cv of candidateDueVocab) {
-          if (!targetKeywords.some(tk => tk.word.toLowerCase() === cv.word.toLowerCase())) {
-            targetKeywords.push(cv);
           }
         }
 
@@ -114,14 +95,9 @@ export class ContextResolverNode {
       const targetKeywords: TargetKeywordItemType[] = (state.customKeywords || []).map(w => ({
         word: w.trim(),
         meaning: `Core concept: ${w.trim()}`,
+        srsStatus: 'unsaved',
+        isInjected: false,
       }));
-
-      // Hợp nhất candidate due vocab vào danh sách targetKeywords
-      for (const cv of candidateDueVocab) {
-        if (!targetKeywords.some(tk => tk.word.toLowerCase() === cv.word.toLowerCase())) {
-          targetKeywords.push(cv);
-        }
-      }
 
       this.logger.log(`✅ Phân giải Custom Topic thành công: "${resolvedTopic}" với ${targetKeywords.length} từ vựng mục tiêu.`);
 
