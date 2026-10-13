@@ -9,6 +9,7 @@ import { CoreModule } from './core/core.module';
 import { QueueModule } from './infra/queue/queue.module';
 import { StoryShadowingModule } from './plugins/story-shadowing/story-shadowing.module';
 import { SpeakingQuizModule } from './plugins/speaking-quiz/speaking-quiz.module';
+import { VocabReviewModule } from './plugins/vocab-review/vocab-review.module';
 import { AgentsModule } from './api/agents/agents.module';
 import { DashboardModule } from './api/dashboard/dashboard.module';
 
@@ -37,6 +38,7 @@ const getPublicPath = () => join(process.cwd(), 'public');
     HealthModule,
     StoryShadowingModule,
     SpeakingQuizModule,
+    VocabReviewModule,
     AgentsModule,
     DashboardModule,
   ],
