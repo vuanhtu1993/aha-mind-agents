@@ -1,8 +1,6 @@
-* [ ] 
+* [ ]
 
 # Hive Service Upgrade & Story Shadowing Resilience Implementation Plan
-
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Nâng cấp `HiveService` với cơ chế Tự chữa lỗi (Auto-healing) và Token Guard, đồng thời tối ưu hóa phân rã chunk (`CHUNK_SIZE = 25`) cho `YoutubeSentenceConsolidatorNode` và chuẩn hóa prompt cho `KeywordEnricherNode` để giải quyết triệt để lỗi cạn kiệt token và lỗi Zod Schema Validation.
 
@@ -475,9 +473,9 @@ curl -X 'POST' \
 
 Expected trong log terminal:
 
-1. `[YoutubeTranscriptFetcherNode] ✅ Hoàn thành lấy phụ đề YouTube (99 đoạn).`
-2. `[YoutubeSentenceConsolidatorNode] Đang gộp phụ đề và căn chỉnh thời gian bằng AI...`
-3. 4 chunk nhỏ (mỗi chunk 25 blocks) hoàn thành gộp câu và phiên âm IPA thành công mà không bị timeout.
-4. `[KeywordIdentifierNode] ✅ Trích xuất thành công các từ vựng khó.`
-5. `[KeywordEnricherNode] ✅ Giải nghĩa thành công từ vựng (Auto-healing hoạt động trơn tru).`
-6. `[StoryShadowingWorker] ✅ Hoàn thành Job. StoryId: ...`
+1. [ ] `[YoutubeTranscriptFetcherNode] ✅ Hoàn thành lấy phụ đề YouTube (99 đoạn).`
+2. [ ] `[YoutubeSentenceConsolidatorNode] Đang gộp phụ đề và căn chỉnh thời gian bằng AI...`
+3. [ ] 4 chunk nhỏ (mỗi chunk 25 blocks) hoàn thành gộp câu và phiên âm IPA thành công mà không bị timeout.
+4. [ ] `[KeywordIdentifierNode] ✅ Trích xuất thành công các từ vựng khó.`
+5. [ ] `[KeywordEnricherNode] ✅ Giải nghĩa thành công từ vựng (Auto-healing hoạt động trơn tru).`
+6. [ ] `[StoryShadowingWorker] ✅ Hoàn thành Job. StoryId: ...`
