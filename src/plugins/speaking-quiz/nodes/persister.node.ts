@@ -52,6 +52,10 @@ export class PersisterNode {
         generatedByModel: 'gemini-2.5-flash',
       };
 
+      if (state.adaptiveScaffold) {
+        docData.adaptiveScaffold = state.adaptiveScaffold;
+      }
+
       if (state.storybookId && Types.ObjectId.isValid(state.storybookId)) {
         docData.storybookId = new Types.ObjectId(state.storybookId);
       }

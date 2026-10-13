@@ -65,6 +65,77 @@ export class SpeakingPrepScaffold {
 
 export const SpeakingPrepScaffoldSchema = SchemaFactory.createForClass(SpeakingPrepScaffold);
 
+@Schema({ _id: false })
+export class TopicCollocationItem {
+  @Prop({ required: true })
+  phrase: string;
+
+  @Prop({ required: true })
+  meaning: string;
+
+  @Prop()
+  ipa?: string;
+}
+
+export const TopicCollocationItemSchema = SchemaFactory.createForClass(TopicCollocationItem);
+
+@Schema({ _id: false })
+export class AdaptiveScaffoldStageItem {
+  @Prop({ required: true })
+  stageKey: string;
+
+  @Prop({ required: true })
+  title: string;
+
+  @Prop({ type: [String], required: true })
+  signposts: string[];
+
+  @Prop({ required: true })
+  hint: string;
+
+  @Prop({ required: true })
+  modelAnswer: string;
+}
+
+export const AdaptiveScaffoldStageItemSchema = SchemaFactory.createForClass(AdaptiveScaffoldStageItem);
+
+@Schema({ _id: false })
+export class AdaptiveScaffoldStages {
+  @Prop({ type: AdaptiveScaffoldStageItemSchema, required: true })
+  stage1: AdaptiveScaffoldStageItem;
+
+  @Prop({ type: AdaptiveScaffoldStageItemSchema, required: true })
+  stage2: AdaptiveScaffoldStageItem;
+
+  @Prop({ type: AdaptiveScaffoldStageItemSchema, required: true })
+  stage3: AdaptiveScaffoldStageItem;
+
+  @Prop({ type: AdaptiveScaffoldStageItemSchema, required: true })
+  stage4: AdaptiveScaffoldStageItem;
+}
+
+export const AdaptiveScaffoldStagesSchema = SchemaFactory.createForClass(AdaptiveScaffoldStages);
+
+@Schema({ _id: false })
+export class SpeakingAdaptiveScaffold {
+  @Prop({ required: true, enum: ['PREP', 'PAR', 'STAR', 'CCR'] })
+  frameworkType: string;
+
+  @Prop({ required: true })
+  frameworkName: string;
+
+  @Prop({ required: true })
+  frameworkDescription: string;
+
+  @Prop({ type: [TopicCollocationItemSchema], default: [] })
+  topicCollocations: TopicCollocationItem[];
+
+  @Prop({ type: AdaptiveScaffoldStagesSchema, required: true })
+  stages: AdaptiveScaffoldStages;
+}
+
+export const SpeakingAdaptiveScaffoldSchema = SchemaFactory.createForClass(SpeakingAdaptiveScaffold);
+
 @Schema({ timestamps: true, collection: 'speaking_questions' })
 export class SpeakingQuestion extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Storybook', required: false, index: true })
@@ -84,6 +155,9 @@ export class SpeakingQuestion extends Document {
 
   @Prop({ type: SpeakingPrepScaffoldSchema, required: true })
   prepScaffold: SpeakingPrepScaffold;
+
+  @Prop({ type: SpeakingAdaptiveScaffoldSchema, required: false })
+  adaptiveScaffold?: SpeakingAdaptiveScaffold;
 
   @Prop({ required: true, enum: ['active', 'archived'], default: 'active', index: true })
   status: string;

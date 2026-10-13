@@ -35,4 +35,8 @@ describe('SpeakingQuestionSchema', () => {
     expect(targetKeywordsSchema.paths['srsStatus']).toBeDefined();
     expect(targetKeywordsSchema.paths['isInjected']).toBeDefined();
   });
+
+  it('should support adaptiveScaffold in SpeakingQuestionSchema', () => {
+    expect(SpeakingQuestionSchema.paths['adaptiveScaffold']).toBeDefined();
+  });
 });

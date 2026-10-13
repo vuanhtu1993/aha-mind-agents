@@ -29,12 +29,29 @@ describe('PersisterNode', () => {
       },
     };
 
-    const result = await node.invoke(state as any);
+    const result = await node.invoke({
+      ...state,
+      adaptiveScaffold: {
+        frameworkType: 'PAR',
+        frameworkName: 'PAR (Problem - Advice - Result)',
+        frameworkDescription: 'Khung lời khuyên',
+        topicCollocations: [{ phrase: 'burnout', meaning: 'kiệt sức' }],
+        stages: {
+          stage1: { stageKey: 'problem', title: 'Problem', signposts: ['P1'], hint: 'H1', modelAnswer: 'M1' },
+          stage2: { stageKey: 'advice', title: 'Advice', signposts: ['A1'], hint: 'H2', modelAnswer: 'M2' },
+          stage3: { stageKey: 'alternative', title: 'Alt', signposts: ['Alt1'], hint: 'H3', modelAnswer: 'M3' },
+          stage4: { stageKey: 'result', title: 'Result', signposts: ['R1'], hint: 'H4', modelAnswer: 'M4' },
+        },
+      },
+    } as any);
 
     expect(result.persistedId).toBe('67a8b9c0f123456789abcdef');
     expect(result.error).toBeUndefined();
     expect(mockSpeakingQuestionModel).toHaveBeenCalledWith(
       expect.objectContaining({
+        adaptiveScaffold: expect.objectContaining({
+          frameworkType: 'PAR',
+        }),
         targetKeywords: [
           expect.objectContaining({
             word: 'evaluate',
