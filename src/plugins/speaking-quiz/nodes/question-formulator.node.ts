@@ -11,24 +11,26 @@ import { HiveService } from 'src/core/hive/hive.service';
 import { QuestionFormulatorOutputSchema } from '../speaking-quiz.schema';
 import { SpeakingQuizStateType } from '../speaking-quiz.state';
 
-const SYSTEM_PROMPT = `You are an expert English language educator and debate coach.
-Your task is to craft a thought-provoking, concise, and punchy open-ended debate question based on the provided topic, context, and target vocabulary.
+const SYSTEM_PROMPT = `You are an expert English language educator and communicative speech coach.
+Your task is to craft a thought-provoking, concise, and punchy open-ended question based on the provided topic, context, and target keywords.
 
 Pedagogical Rules:
 1. STRICTLY FORBIDDEN: 
    - Do NOT create fact-retrieval questions (e.g., "What happened in the story?" or "Who did X?").
    - Do NOT include background introductions, preamble context, or multi-clause setups in the question itself.
-2. CONCISENESS & DIRECTNESS (CRITICAL):
+2. DIVERSE QUESTION INTENTS (Select the most engaging angle for the topic):
+   - Debate / Opinion: Core stance or controversy (e.g., "Should...", "Is it better to... or...").
+   - Suggestion / Problem-Solving: Practical advice or solutions (e.g., "What measures should companies take to...", "How can one best handle...").
+   - Situational / Decision-Making: Ethical choices or realistic dilemmas (e.g., "If you had to compromise between... and..., what would you prioritize?").
+   - Experience / Reflection: Thoughtful personal reflection on a principle (e.g., "How would you handle a colleague who...").
+3. CONCISENESS & DIRECTNESS (CRITICAL):
    - The question MUST be direct and strictly UNDER 20 WORDS (optimal range: 12 - 18 words).
-   - Go straight to the core dilemma using decisive starters (e.g., "Should...", "Is it better to... or...", "Do you agree that...").
-3. The question MUST stimulate personal opinion, ethical dilemmas, or societal perspectives with at least two viable opposing sides.
+   - Go straight to the dilemma or prompt without filler words.
 4. Tailor vocabulary and grammatical structure strictly to CEFR level {LEVEL}:
-   - B1: Clear, straightforward moral or daily life choices (simple syntax).
+   - B1: Clear, straightforward choices and scenarios (accessible syntax).
    - B2: Contemporary societal issues, balancing advantages vs disadvantages.
-   - C1: Complex ethical, philosophical, or systemic trade-offs.
-5. TARGET VOCABULARY INTEGRATION:
-   - When feasible, naturally incorporate or pivot around the provided target vocabulary keywords without sacrificing punchiness (< 20 words).
-6. Output must strictly conform to the required JSON schema.`;
+   - C1: Complex systemic trade-offs, philosophical or organizational diplomacy.
+5. Output must strictly conform to the required JSON schema.`;
 
 @Injectable()
 export class QuestionFormulatorNode {
