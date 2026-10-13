@@ -1,6 +1,6 @@
 # Speaking Quiz Agent — API Integration Contract (aha-tools ⟷ aha-mind-agents)
 
-> **Document Version:** 1.2.0  
+> **Document Version:** 1.3.0  
 > **Release Date:** 2026-10-13  
 > **Status:** Active / Production Ready  
 > **Target Audience:** Frontend/Backend Engineers tại `aha-tools` (Next.js) và `aha-mind-agents` (NestJS)  
@@ -17,17 +17,21 @@
 
 > **API Contract (Hợp đồng Tích hợp Giao diện & Tác nhân)** là thỏa thuận giao thức kỹ thuật chuẩn hóa, bất biến giữa bên cung cấp dịch vụ (**Service Provider** — `aha-mind-agents`) và bên tiêu thụ (**Consumer** — `aha-tools`). Hợp đồng này quy định rõ cấu trúc dữ liệu gửi lên (Payload), các mã phản hồi HTTP (Status Codes), định dạng dữ liệu trả về (Response Schemas) và cơ chế truyền thông thời gian thực (HTTP REST & Server-Sent Events).
 
-* **Asynchronous Queue Model (Mô hình Hàng đợi Bất đồng bộ):** Do tác vụ sinh câu hỏi kết hợp phản biện và tổng hợp giàn giáo PREP qua mô hình ngôn ngữ lớn (LLM — Gemini 2.5) mất từ **10 – 25 giây**, hệ thống không giữ kết nối HTTP thông thường (tránh HTTP 504 Gateway Timeout) mà sử dụng **BullMQ + Redis Pub/Sub** để xử lý nền và phát sóng tiến độ theo từng chặng.
+* **Asynchronous Queue Model (Mô hình Hàng đợi Bất đồng bộ):** Do tác vụ sinh câu hỏi kết hợp phản biện và tổng hợp giàn giáo qua mô hình ngôn ngữ lớn (LLM — Gemini 2.5) mất từ **10 – 25 giây**, hệ thống không giữ kết nối HTTP thông thường (tránh HTTP 504 Gateway Timeout) mà sử dụng **BullMQ + Redis Pub/Sub** để xử lý nền và phát sóng tiến độ theo từng chặng.
 * **Idempotency (Tính Bất biến theo Ngữ cảnh):** Khi `aha-tools` gửi yêu cầu cho cùng một bài học `storybookId`, hệ thống kiểm tra và tái sử dụng ngay kết quả đã lưu trong CSDL MongoDB (`speaking_questions`), phản hồi ngay trong **$< 50\text{ms}$** và tiết kiệm 100% token LLM.
-* **PREP Framework (Giàn giáo Tư duy Phản biện Quốc tế):**
-  * **P (Point):** Luận điểm chính, nêu trực diện quan điểm trong câu đầu tiên.
-  * **R (Reason):** Luận cứ & giải thích lý do sâu xa tại sao lại có quan điểm đó.
-  * **E (Example):** Dẫn chứng, số liệu hoặc kinh nghiệm thực tiễn để bảo vệ quan điểm.
-  * **P/C (Point / Conclusion):** Kết luận, khẳng định lại lập trường và đúc kết ý kiến.
-* **SRS-to-Speaking Active Recall Injection (Cơ chế Bơm Từ Vựng SRS Kích Hoạt Trí Nhớ Chủ Động):**
-  * *Tại sao cần tính năng này (Why):* Người học thường rơi vào trạng thái *Passive Recall* — nhận biết từ vựng khi đọc hiểu hoặc làm trắc nghiệm, nhưng "bế tắc" khi nói độc thoại.
-  * *Cơ chế hoạt động:* Trong Node `context_resolved`, hệ thống tự động trích xuất các từ vựng đến hạn ôn tập (`fsrs.due <= now`) hoặc từ vựng đang học có độ vững chắc thấp (`stability` thấp) từ `VocabReviewService.getCandidateDueVocab({ limit: 3 })`.
-  * *Ràng buộc tích hợp:* Các từ vựng này được gắn cờ `isInjected = true` và `srsStatus = 'due' | 'learning' | 'mastered' | 'new'`. Node `prep_synthesized` bắt buộc LLM phải lồng ghép tự nhiên **tối thiểu 2 từ vựng mục tiêu** vào các câu trả lời mẫu (`modelAnswer`) của 4 giai đoạn PREP.
+* **Adaptive Speaking Frameworks (Hệ thống Giàn giáo Thích ứng Đa Khung Giao tiếp):**
+  Thay vì gò bó mọi câu hỏi vào một khuôn mẫu PREP duy nhất (dẫn đến câu trả lời khiên cưỡng với các câu hỏi giải pháp hay kể chuyện), hệ thống tự động nhận diện ý định giao tiếp (*Speech Act Intent*) của câu hỏi để lựa chọn 1 trong 4 khung tối ưu:
+  * **PREP (Point - Reason - Example - Conclusion):** Tối ưu cho câu hỏi quan điểm, tranh biện (*Opinion / Stance / Debate*).
+  * **PAR (Problem - Advice/Action - Result/Alternative):** Tối ưu cho câu hỏi lời khuyên, giải pháp thực tiễn (*Suggestion / Recommendation / Problem-Solving*).
+  * **STAR (Situation - Task/Action - Result):** Tối ưu cho câu hỏi chia sẻ trải nghiệm, tình huống quá khứ (*Storytelling / Behavioral / Personal Experience*).
+  * **CCR (Claim - Concession/Counter-argument - Resolution):** Tối ưu cho thảo luận thỏa hiệp, cân nhắc lợi hại ngoại giao (*Diplomacy / Negotiation / Trade-offs*).
+* **Topic Collocations & Idioms Toolkit (Bộ Công cụ Cụm từ Bản xứ theo Chủ đề):**
+  Cung cấp trực tiếp 2–4 cụm từ bản xứ tự nhiên (*Collocations, Phrasal Verbs, Idioms*) kèm nghĩa tiếng Việt và phiên âm IPA tương thích với chủ đề nói. Các cụm từ này được dệt tự nhiên vào câu mẫu ở cả 4 giai đoạn giàn giáo.
+* **Organic Lexical Flow (Dòng chảy Từ vựng Hữu cơ):**
+  * *Tại sao loại bỏ Forced FSRS Injection:* Việc cưỡng bức chèn 3 từ vựng đến hạn bất kỳ từ `vocab_cards` vào bài nói khiến câu văn bị gượng ép, mất tự nhiên và gây lặp lại nếu học viên luyện nhiều câu trong cùng chủ đề.
+  * *Mô hình mới:* Node `context_resolved` trích xuất từ vựng tự nhiên từ chính nội dung Storybook/Chủ đề. Sau khi luyện nói, học viên có thể chủ động bấm lưu các cụm từ mới (`topicCollocations`) vào `vocab_cards` để FSRS xếp lịch ôn tập sau này.
+* **Backward Compatibility Bridge (Cầu nối Tương thích Ngược 100%):**
+  Hệ thống duy trì song song cả trường `adaptiveScaffold` (đầy đủ cấu trúc khung và collocations) lẫn trường `prepScaffold` (ánh xạ 4 giai đoạn về `point`, `reason`, `example`, `conclusion`), giúp toàn bộ mã nguồn giao diện hiện tại của `aha-tools` (`SpeakingPrepCard`, `SpeakYourMindPlayer`) hoạt động hoàn hảo mà không cần sửa đổi bắt buộc.
 
 ---
 
@@ -41,7 +45,6 @@ sequenceDiagram
     participant GW as Gateway Controller (/api/agents/speaking-quiz/*)
     participant Redis as Redis Queue & Pub/Sub
     participant Worker as SpeakingQuizWorker (LangGraph)
-    participant VocabSvc as VocabReviewService (FSRS Engine)
     participant Gemini as Google Gemini 2.5
     participant DB as MongoDB (speaking_questions)
 
@@ -54,7 +57,7 @@ sequenceDiagram
         DB-->>GW: Trả về câu hỏi có sẵn
         GW-->>ClientSDK: HTTP 202 { status: 'completed', existingQuestionId: '...' }
         ClientSDK->>GW: GET /api/agents/speaking-quiz/questions/:existingQuestionId
-        GW-->>ClientSDK: HTTP 200 OK (Chi tiết câu hỏi + giàn giáo PREP)
+        GW-->>ClientSDK: HTTP 200 OK (Chi tiết câu hỏi + giàn giáo thích ứng & PREP)
         ClientSDK-->>Learner: Hiển thị giao diện luyện nói ngay lập tức (< 50ms)
     else Chưa tồn tại hoặc forceRegenerate = true
         GW->>Redis: Đẩy Job vào hàng đợi 'speaking-quiz-queue'
@@ -64,35 +67,33 @@ sequenceDiagram
         ClientSDK->>GW: GET /api/agents/speaking-quiz/jobs/:jobId/progress (Accept: text/event-stream)
         QueueWorker: Worker nhận Job và khởi chạy LangGraph StateGraph
         
-        %% Node 1: context_resolved & Vocab Injection
-        Worker->>DB: Đọc nội dung Storybook
-        Worker->>VocabSvc: getCandidateDueVocab({ limit: 3 })
-        VocabSvc-->>Worker: Trả về danh sách từ vựng FSRS đến hạn
-        Worker->>Worker: Hợp nhất targetKeywords (gắn srsStatus & isInjected = true)
+        %% Node 1: context_resolved
+        Worker->>DB: Đọc nội dung Storybook (hoặc nhận customTopic)
+        Worker->>Worker: Trích xuất từ vựng trọng tâm tự nhiên (Organic Lexical Flow)
         Worker->>Redis: Publish SSE { stage: 'context_resolved', progress: 25 }
-        Redis-->>GW-->>ClientSDK: Event: progress 25% (Đã phân giải bài học & nạp từ vựng SRS)
+        Redis-->>GW-->>ClientSDK: Event: progress 25% (Đã phân giải bài học & ngữ cảnh)
         
         %% Node 2: question_formulated
-        Worker->>Gemini: question_formulator: Đặt câu hỏi tranh luận sâu sắc
-        Gemini-->>Worker: Topic & Debate Question
+        Worker->>Gemini: question_formulator: Đặt câu hỏi kích thích tư duy (< 20 từ)
+        Gemini-->>Worker: Topic & Adaptive Question Intent
         Worker->>Redis: Publish SSE { stage: 'question_formulated', progress: 50 }
         Redis-->>GW-->>ClientSDK: Event: progress 50% (Đã tạo xong câu hỏi thảo luận)
         
         %% Node 3: prep_synthesized
-        Worker->>Gemini: prep_synthesizer: Xây dựng giàn giáo PREP (ép lồng ghép từ vựng)
-        Gemini-->>Worker: 4 giai đoạn Point, Reason, Example, Conclusion chứa từ vựng
+        Worker->>Gemini: prep_synthesizer: Lựa chọn khung (PREP/PAR/STAR/CCR) & sinh Collocations
+        Gemini-->>Worker: Adaptive Scaffold + Topic Collocations + Mapped PREP
         Worker->>Redis: Publish SSE { stage: 'prep_synthesized', progress: 80 }
-        Redis-->>GW-->>ClientSDK: Event: progress 80% (Đang hoàn thiện giàn giáo PREP)
+        Redis-->>GW-->>ClientSDK: Event: progress 80% (Đang hoàn thiện giàn giáo thích ứng)
         
         %% Node 4: persister
-        Worker->>DB: Lưu vào collection 'speaking_questions'
+        Worker->>DB: Lưu vào collection 'speaking_questions' (gồm cả adaptiveScaffold & prepScaffold)
         Worker->>Redis: Publish SSE { status: 'done', progress: 100, payload: { questionId } }
         Redis-->>GW-->>ClientSDK: Event: done 100%
         
         Note over ClientSDK, DB: BƯỚC 3: TRUY VẤN DỮ LIỆU ĐỀ BÀI HOÀN CHỈNH
         ClientSDK->>ClientSDK: Đóng kết nối EventSource (sse.close())
         ClientSDK->>GW: GET /api/agents/speaking-quiz/questions/:questionId
-        GW-->>ClientSDK: HTTP 200 OK (Câu hỏi, từ vựng gắn nhãn SRS & giàn giáo PREP)
+        GW-->>ClientSDK: HTTP 200 OK (Câu hỏi, Collocations, Adaptive Scaffold & PREP)
         ClientSDK-->>Learner: Hiển thị giao diện SpeakYourMindPlayer
     end
 ```
@@ -207,65 +208,105 @@ data: {"jobId":"4","status":"done","progress":100,"message":"Speaking quiz gener
   * `200 OK`: Trả về dữ liệu chi tiết câu hỏi, từ vựng và giàn giáo PREP.
   * `404 Not Found`: Không tìm thấy câu hỏi hoặc định dạng ObjectId không hợp lệ.
 
-#### Response Example (HTTP 200 OK — Bao gồm các trường FSRS mới):
+#### Response Example (HTTP 200 OK — Bao gồm Adaptive Scaffold & Legacy PREP Mapped):
 ```json
 {
   "id": "6abdc5cae5d0b4f316e5516c",
   "storybookId": "679c1a2b3c4d5e6f7a8b9c0d",
   "topic": "The Future of Clean Energy",
-  "question": "Do you believe governments should mandate the total phase-out of fossil fuels by 2035? Why or why not?",
+  "question": "How can governments accelerate the transition to clean energy without disrupting local industries?",
   "level": "B2",
   "targetKeywords": [
     {
       "word": "sustainable",
       "ipa": "/səˈsteɪ.nə.bəl/",
       "meaning": "Có thể duy trì lâu dài, bền vững",
-      "srsStatus": "due",
-      "isInjected": true
+      "srsStatus": "unsaved",
+      "isInjected": false
     },
     {
       "word": "transition",
       "ipa": "/trænˈzɪʃ.ən/",
       "meaning": "Quá trình chuyển đổi",
-      "srsStatus": "learning",
-      "isInjected": true
-    },
-    {
-      "word": "subsidize",
-      "ipa": "/ˈsʌb.sɪ.daɪz/",
-      "meaning": "Trợ cấp, bao cấp tài chính",
       "srsStatus": "unsaved",
       "isInjected": false
     }
   ],
+  "adaptiveScaffold": {
+    "frameworkType": "PAR",
+    "frameworkName": "PAR (Problem - Advice - Result)",
+    "frameworkDescription": "Khung giải pháp tối ưu cho câu hỏi đề xuất lời khuyên và hành động thực tiễn",
+    "topicCollocations": [
+      {
+        "phrase": "renewable transition",
+        "meaning": "chuyển dịch sang năng lượng tái tạo",
+        "ipa": "/rɪˈnjuːəbəl trænˈzɪʃən/"
+      },
+      {
+        "phrase": "fossil fuel phase-out",
+        "meaning": "loại bỏ dần nhiên liệu hóa thạch",
+        "ipa": "/ˈfɑːsəl ˈfjuːəl feɪz aʊt/"
+      }
+    ],
+    "stages": {
+      "stage1": {
+        "stageKey": "problem",
+        "title": "Problem Identification",
+        "signposts": ["The core dilemma is", "Looking at the environmental crisis"],
+        "hint": "Nêu thực trạng và rủi ro nếu tiếp tục phụ thuộc nhiên liệu hóa thạch.",
+        "modelAnswer": "The core dilemma is that delaying the fossil fuel phase-out severely accelerates global warming."
+      },
+      "stage2": {
+        "stageKey": "advice",
+        "title": "Actionable Advice",
+        "signposts": ["Governments should urgently", "A practical roadmap is to"],
+        "hint": "Đưa ra giải pháp chính sách và trợ cấp công nghệ xanh.",
+        "modelAnswer": "Governments should urgently accelerate the renewable transition by subsidizing wind and solar infrastructure."
+      },
+      "stage3": {
+        "stageKey": "alternative",
+        "title": "Pragmatic Consideration",
+        "signposts": ["At the same time", "To avoid economic shock"],
+        "hint": "Cân nhắc lộ trình chuyển đổi linh hoạt cho các ngành công nghiệp nặng.",
+        "modelAnswer": "At the same time, transitional grids must be maintained to prevent energy poverty in emerging markets."
+      },
+      "stage4": {
+        "stageKey": "result",
+        "title": "Expected Outcome",
+        "signposts": ["Ultimately", "This approach ensures that"],
+        "hint": "Đúc kết kết quả dài hạn và lợi ích cho thế hệ tương lai.",
+        "modelAnswer": "Ultimately, this approach ensures long-term ecological balance and sustainable economic growth."
+      }
+    }
+  },
   "prepScaffold": {
     "point": {
       "stage": "point",
-      "title": "State your direct stance",
-      "signposts": ["In my opinion", "From my perspective", "I firmly believe that"],
-      "hint": "Nêu rõ lập trường đồng ý hay phản đối việc loại bỏ hoàn toàn nhiên liệu hóa thạch vào năm 2035.",
-      "modelAnswer": "In my opinion, governments must mandate the transition to renewable energy to secure a sustainable future."
+      "title": "Problem Identification",
+      "signposts": ["The core dilemma is", "Looking at the environmental crisis"],
+      "hint": "Nêu thực trạng và rủi ro nếu tiếp tục phụ thuộc nhiên liệu hóa thạch.",
+      "modelAnswer": "The core dilemma is that delaying the fossil fuel phase-out severely accelerates global warming."
     },
     "reason": {
       "stage": "reason",
-      "title": "Explain the core reason",
-      "signposts": ["The primary reason is that", "This is largely because", "Furthermore"],
-      "hint": "Giải thích tác động của biến đổi khí hậu và lợi ích kinh tế lâu dài của năng lượng xanh.",
-      "modelAnswer": "The primary reason is that continuing to burn fossil fuels accelerates climate change, whereas clean energy offers long-term economic stability."
+      "title": "Actionable Advice",
+      "signposts": ["Governments should urgently", "A practical roadmap is to"],
+      "hint": "Đưa ra giải pháp chính sách và trợ cấp công nghệ xanh.",
+      "modelAnswer": "Governments should urgently accelerate the renewable transition by subsidizing wind and solar infrastructure."
     },
     "example": {
       "stage": "example",
-      "title": "Illustrate with real-world proof",
-      "signposts": ["For instance", "A clear illustration of this is", "Take the case of"],
-      "hint": "Đưa ra dẫn chứng thực tế từ các quốc gia Bắc Âu hoặc các chính sách năng lượng mặt trời thành công.",
-      "modelAnswer": "For instance, several European nations that stopped subsidizing coal have rapidly expanded their solar and wind grids without disrupting productivity."
+      "title": "Pragmatic Consideration",
+      "signposts": ["At the same time", "To avoid economic shock"],
+      "hint": "Cân nhắc lộ trình chuyển đổi linh hoạt cho các ngành công nghiệp nặng.",
+      "modelAnswer": "At the same time, transitional grids must be maintained to prevent energy poverty in emerging markets."
     },
     "conclusion": {
       "stage": "conclusion",
-      "title": "Reinforce your final thought",
-      "signposts": ["To sum up", "Therefore", "Ultimately"],
-      "hint": "Khẳng định lại tầm quan trọng của hành động quyết liệt và đúc kết thông điệp cuối cùng.",
-      "modelAnswer": "Therefore, establishing a clear deadline by 2035 is an indispensable policy to drive sustainable innovation."
+      "title": "Expected Outcome",
+      "signposts": ["Ultimately", "This approach ensures that"],
+      "hint": "Đúc kết kết quả dài hạn và lợi ích cho thế hệ tương lai.",
+      "modelAnswer": "Ultimately, this approach ensures long-term ecological balance and sustainable economic growth."
     }
   }
 }
@@ -291,17 +332,18 @@ data: {"jobId":"4","status":"done","progress":100,"message":"Speaking quiz gener
       "id": "6abdc5cae5d0b4f316e5516c",
       "storybookId": "679c1a2b3c4d5e6f7a8b9c0d",
       "topic": "The Future of Clean Energy",
-      "question": "Do you believe governments should mandate the total phase-out of fossil fuels by 2035?",
+      "question": "How can governments accelerate the transition to clean energy without disrupting local industries?",
       "level": "B2",
       "targetKeywords": [
         {
           "word": "sustainable",
           "ipa": "/səˈsteɪ.nə.bəl/",
           "meaning": "Có thể duy trì lâu dài, bền vững",
-          "srsStatus": "due",
-          "isInjected": true
+          "srsStatus": "unsaved",
+          "isInjected": false
         }
       ],
+      "adaptiveScaffold": { "...": "..." },
       "prepScaffold": {
         "point": { "...": "..." },
         "reason": { "...": "..." },
@@ -326,17 +368,67 @@ Nhóm phát triển `aha-tools` có thể sao chép trực tiếp các Type defi
 export type CefrLevel = 'B1' | 'B2' | 'C1';
 
 /**
+ * Các loại khung giàn giáo tư duy giao tiếp thích ứng (Adaptive Frameworks)
+ * - PREP: Point - Reason - Example - Conclusion (Quan điểm, tranh biện)
+ * - PAR: Problem - Advice/Action - Result (Lời khuyên, giải pháp)
+ * - STAR: Situation - Task/Action - Result (Kể chuyện, trải nghiệm cá nhân)
+ * - CCR: Claim - Concession/Counter - Resolution (Thương lượng, cân nhắc đa chiều)
+ */
+export type FrameworkType = 'PREP' | 'PAR' | 'STAR' | 'CCR';
+
+/**
+ * Cụm từ vựng/idioms/collocation bản xứ chuyên đề
+ */
+export interface TopicCollocationItem {
+  phrase: string;
+  meaning: string;
+  ipa?: string;
+}
+
+/**
+ * Chi tiết một chặng trong giàn giáo thích ứng
+ */
+export interface AdaptiveScaffoldStageItem {
+  stageKey: string;
+  title: string;
+  signposts: string[];
+  hint: string;
+  modelAnswer: string;
+}
+
+/**
+ * Cấu trúc 4 chặng của giàn giáo thích ứng
+ */
+export interface AdaptiveScaffoldStages {
+  stage1: AdaptiveScaffoldStageItem;
+  stage2: AdaptiveScaffoldStageItem;
+  stage3: AdaptiveScaffoldStageItem;
+  stage4: AdaptiveScaffoldStageItem;
+}
+
+/**
+ * Giàn giáo tư duy thích ứng hoàn chỉnh (Adaptive Scaffold)
+ */
+export interface SpeakingAdaptiveScaffold {
+  frameworkType: FrameworkType;
+  frameworkName: string;
+  frameworkDescription: string;
+  topicCollocations: TopicCollocationItem[];
+  stages: AdaptiveScaffoldStages;
+}
+
+/**
  * Trạng thái Spaced Repetition của từ vựng
  * - due: Thẻ từ vựng đã đến hạn cần ôn tập (due <= now)
  * - learning: Thẻ đang trong chu kỳ học tập tích cực
  * - mastered: Thẻ đã đạt độ vững chắc cao (stability >= 30 ngày)
  * - new: Thẻ mới lưu, chưa qua lần ôn tập nào
- * - unsaved: Từ vựng được trích xuất từ bài học nhưng người học chưa lưu vào bộ từ
+ * - unsaved: Từ vựng trích xuất từ bài học hoặc đề bài, người học có thể bấm lưu vào bộ từ
  */
 export type SrsStatus = 'due' | 'learning' | 'mastered' | 'new' | 'unsaved';
 
 /**
- * Cấu hình một chặng trong giàn giáo tư duy PREP
+ * Cấu hình một chặng trong giàn giáo tư duy PREP (Legacy)
  */
 export interface SpeakingScaffoldStage {
   stage: 'point' | 'reason' | 'example' | 'conclusion';
@@ -347,7 +439,7 @@ export interface SpeakingScaffoldStage {
 }
 
 /**
- * Trọn bộ giàn giáo PREP 4 chặng hoàn chỉnh
+ * Trọn bộ giàn giáo PREP 4 chặng hoàn chỉnh (Legacy Mapped)
  */
 export interface SpeakingPrepScaffold {
   point: SpeakingScaffoldStage;
@@ -424,6 +516,7 @@ export interface SpeakingQuestionDetail {
   level: CefrLevel;
   targetKeywords: TargetKeywordItem[];
   prepScaffold: SpeakingPrepScaffold;
+  adaptiveScaffold?: SpeakingAdaptiveScaffold;
   tokenUsage?: {
     promptTokens: number;
     completionTokens: number;
