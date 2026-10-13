@@ -9,6 +9,8 @@ import {
 
 import { Storybook, StorybookSchema } from './schemas/storybook.schema';
 import { SpeakingQuestion, SpeakingQuestionSchema } from './schemas/speaking-question.schema';
+import { VocabCard, VocabCardSchema } from './schemas/vocab-card.schema';
+import { VocabReviewLog, VocabReviewLogSchema } from './schemas/vocab-review-log.schema';
 import { AgentExecLog, AgentExecLogSchema } from './schemas/agent-log.schema';
 import { AgentConfig, AgentConfigSchema } from './schemas/agent-config.schema';
 
@@ -53,6 +55,8 @@ import { AgentConfig, AgentConfigSchema } from './schemas/agent-config.schema';
       [
         { name: Storybook.name, schema: StorybookSchema },
         { name: SpeakingQuestion.name, schema: SpeakingQuestionSchema },
+        { name: VocabCard.name, schema: VocabCardSchema },
+        { name: VocabReviewLog.name, schema: VocabReviewLogSchema },
       ],
       AHA_TOOLS_CONNECTION,
     ),
