@@ -21,6 +21,7 @@ export const SpeakingQuizState = Annotation.Root({
   storybookId: Annotation<string | undefined>(),
   customTopic: Annotation<string | undefined>(),
   requestedLevel: Annotation<'B1' | 'B2' | 'C1'>(),
+  preferredFramework: Annotation<'PREP' | 'PAR' | 'STAR' | 'CCR' | undefined>(),
   customKeywords: Annotation<string[] | undefined>({
     reducer: (_, y) => y,
   }),
@@ -39,6 +40,7 @@ export const SpeakingQuizState = Annotation.Root({
 
   // LLM Outputs (Node 2 & Node 3)
   generatedQuestion: Annotation<string | undefined>(),
+  selectedFramework: Annotation<'PREP' | 'PAR' | 'STAR' | 'CCR' | undefined>(),
   prepScaffold: Annotation<PrepSynthesizerOutput | undefined>({
     reducer: (_, y) => y,
   }),

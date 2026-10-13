@@ -51,6 +51,7 @@ export class SpeakingQuizService {
         customTopic: dto.customTopic,
         level: dto.level || 'B2',
         targetKeywords: dto.targetKeywords,
+        preferredFramework: dto.preferredFramework,
       },
       {
         attempts: 3,
@@ -99,6 +100,7 @@ export class SpeakingQuizService {
         level: doc.level,
         targetKeywords: doc.targetKeywords,
         prepScaffold: doc.prepScaffold,
+        adaptiveScaffold: doc.adaptiveScaffold,
       })),
     };
   }
@@ -119,6 +121,7 @@ export class SpeakingQuizService {
       level: (question as any).level,
       targetKeywords: (question as any).targetKeywords,
       prepScaffold: (question as any).prepScaffold,
+      adaptiveScaffold: (question as any).adaptiveScaffold,
     };
   }
 

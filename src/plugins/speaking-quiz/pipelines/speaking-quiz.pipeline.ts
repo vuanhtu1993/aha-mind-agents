@@ -27,7 +27,13 @@ export class SpeakingQuizPipelineService {
   ) {}
 
   public execute(
-    input: { storybookId?: string; customTopic?: string; level?: 'B1' | 'B2' | 'C1'; targetKeywords?: string[] },
+    input: {
+      storybookId?: string;
+      customTopic?: string;
+      level?: 'B1' | 'B2' | 'C1';
+      targetKeywords?: string[];
+      preferredFramework?: 'PREP' | 'PAR' | 'STAR' | 'CCR';
+    },
     context: ExecutionContext,
   ): Observable<ProgressEvent> {
     return new Observable<ProgressEvent>((subscriber) => {
@@ -52,6 +58,7 @@ export class SpeakingQuizPipelineService {
             storybookId: input.storybookId,
             customTopic: input.customTopic,
             requestedLevel: input.level || 'B2',
+            preferredFramework: input.preferredFramework,
             customKeywords: input.targetKeywords,
             config: context.config,
           };

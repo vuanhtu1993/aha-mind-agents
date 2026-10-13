@@ -41,17 +41,27 @@ export class QuestionFormulatorNode {
   public async invoke(state: SpeakingQuizStateType): Promise<Partial<SpeakingQuizStateType>> {
     if (state.error || !state.resolvedTopic) return {};
 
-    this.logger.log(`Đang sinh câu hỏi tranh luận cho chủ đề: "${state.resolvedTopic}" [Level: ${state.level}]`);
+    this.logger.log(`Đang sinh câu hỏi luyện nói cho chủ đề: "${state.resolvedTopic}" [Level: ${state.level}]`);
 
     const promptTemplate = SYSTEM_PROMPT.replace('{LEVEL}', state.level || 'B2');
     const keywordList = (state.targetKeywords || []).map(k => k.word).join(', ');
 
+    const frameworkHint = state.preferredFramework
+      ? `Mandatory Target Framework: "${state.preferredFramework}". Ensure the question is formulated specifically for this framework.`
+      : `Select the most natural suggestedFramework ('PAR', 'CCR', 'STAR', or 'PREP') for this topic.
+   - For problem-solving, career advice, overcoming difficulties, or practical recommendations: formulate a 'How can/should...' question and suggest 'PAR'.
+   - For balancing two competing priorities, nuance, or trade-offs: formulate a balance question and suggest 'CCR'.
+   - For personal reaction, case story, or behavioral scenarios: formulate a 'How would you handle...' question and suggest 'STAR'.
+   - For sharp controversies or policy decisions: formulate a direct stance question ('Should...') and suggest 'PREP'.
+   DO NOT default to 'PREP' if advice (PAR) or trade-offs (CCR) are more engaging for the learner.`;
+
     const userPrompt = `Topic: ${state.resolvedTopic}
 Context Summary: ${state.sourceContentSummary || 'No extra summary.'}
 Target Keywords to stimulate: ${keywordList || 'None specified'}
-Target CEFR Level: ${state.level}
+Target CEFR Level: ${state.level || 'B2'}
+${frameworkHint}
 
-Generate a punchy, concise debate question (under 20 words) that directly invites the learner to take a stand.`;
+Generate a punchy, spoken English prompt (under 20 words) and specify the suggestedFramework.`;
 
     try {
       const response = await this.hive.invokeStructured(
@@ -63,15 +73,17 @@ Generate a punchy, concise debate question (under 20 words) that directly invite
         { temperature: 0.3, name: 'question_formulator' },
       );
 
-      this.logger.log(`✅ Câu hỏi đã sinh: "${response.parsed.question}"`);
+      const chosenFramework = state.preferredFramework || response.parsed.suggestedFramework || 'PAR';
+      this.logger.log(`✅ Câu hỏi đã sinh: "${response.parsed.question}" (Khung: ${chosenFramework})`);
 
       return {
         generatedQuestion: response.parsed.question,
+        selectedFramework: chosenFramework,
         tokenUsage: response.usage,
       };
     } catch (err: any) {
       this.logger.error(`❌ Lỗi sinh câu hỏi: ${err.message}`);
-      return { error: `Không thể tạo câu hỏi tranh luận: ${err.message}` };
+      return { error: `Không thể tạo câu hỏi luyện nói: ${err.message}` };
     }
   }
 }

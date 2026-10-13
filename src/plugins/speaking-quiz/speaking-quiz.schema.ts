@@ -22,11 +22,14 @@ export const CustomTopicSpeakingInputSchema = z.object({
   forceRegenerate: z.boolean().optional().default(false),
 });
 
+export const FrameworkTypeSchema = z.enum(['PREP', 'PAR', 'STAR', 'CCR']);
+
 export const SpeakingQuizJobPayloadSchema = z.object({
   storybookId: z.string().optional(),
   customTopic: z.string().optional(),
   level: CefrLevelSchema.default('B2'),
   targetKeywords: z.array(z.string()).optional(),
+  preferredFramework: FrameworkTypeSchema.optional(),
   forceRegenerate: z.boolean().optional().default(false),
 }).refine(data => data.storybookId || data.customTopic, {
   message: 'Bắt buộc phải cung cấp storybookId hoặc customTopic',
@@ -34,7 +37,8 @@ export const SpeakingQuizJobPayloadSchema = z.object({
 
 export const QuestionFormulatorOutputSchema = z.object({
   topic: z.string().min(2, 'Topic không được để trống'),
-  question: z.string().min(10, 'Câu hỏi tranh luận phải rõ ràng và chi tiết'),
+  question: z.string().min(10, 'Câu hỏi luyện nói phải rõ ràng và chi tiết'),
+  suggestedFramework: FrameworkTypeSchema.optional(),
 });
 
 const createStageSchema = (stageName: string) =>
@@ -51,8 +55,6 @@ export const PrepSynthesizerOutputSchema = z.object({
   example: createStageSchema('example'),
   conclusion: createStageSchema('conclusion'),
 });
-
-export const FrameworkTypeSchema = z.enum(['PREP', 'PAR', 'STAR', 'CCR']);
 
 export const TopicCollocationSchema = z.object({
   phrase: z.string().min(1, 'Collocation phrase không được để trống'),

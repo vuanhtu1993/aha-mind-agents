@@ -62,12 +62,17 @@ export class PrepSynthesizerNode {
       .map(k => `"${k.word}" (${k.meaning})`)
       .join(', ');
 
+    const frameworkGuidance = state.selectedFramework
+      ? `Target Framework Requirement: Construct the scaffold specifically using frameworkType: "${state.selectedFramework}".`
+      : 'Select the best framework (PREP, PAR, STAR, CCR). Do not default to PREP if the question is advice (PAR) or compromise (CCR).';
+
     const userPrompt = `Topic: ${state.resolvedTopic}
 Question: ${state.generatedQuestion}
 Target Keywords: ${keywordStr || 'Topic-specific spoken vocabulary'}
 CEFR Level: ${state.level || 'B2'}
+${frameworkGuidance}
 
-Select the best framework (PREP, PAR, STAR, CCR), provide 2-4 native topic collocations with Vietnamese meanings, and construct all 4 stages.`;
+Provide 2-4 native topic collocations with Vietnamese meanings, and construct all 4 stages.`;
 
     const maxRetries = 2;
     let attempt = 0;
@@ -85,9 +90,21 @@ Select the best framework (PREP, PAR, STAR, CCR), provide 2-4 native topic collo
         );
 
         this.logger.log(`✅ Giàn giáo thích ứng (${response.parsed.frameworkType}) hoàn thành sau ${attempt + 1} lần thực thi.`);
+
+        const fallbackKeywords = (!state.targetKeywords || state.targetKeywords.length === 0)
+          ? response.parsed.topicCollocations.map((col: any) => ({
+              word: col.phrase,
+              ipa: col.ipa,
+              meaning: col.meaning,
+              srsStatus: 'unsaved' as const,
+              isInjected: false,
+            }))
+          : undefined;
+
         return {
           adaptiveScaffold: response.parsed,
           prepScaffold: toLegacyPrepScaffold(response.parsed),
+          targetKeywords: fallbackKeywords || state.targetKeywords,
           tokenUsage: response.usage,
         };
       } catch (err: any) {

@@ -47,6 +47,6 @@ describe('QuestionFormulatorNode', () => {
       level: 'B2',
     } as any);
 
-    expect(result.error).toContain('Không thể tạo câu hỏi tranh luận');
+    expect(result.error).toContain('Không thể tạo câu hỏi luyện nói');
   });
 });

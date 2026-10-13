@@ -31,17 +31,29 @@ export class PersisterNode {
     this.logger.log(`Đang lưu đề bài Speaking Quiz vào CSDL: "${state.resolvedTopic}"`);
 
     try {
+      let resolvedKeywords = (state.targetKeywords || []).map(k => ({
+        word: k.word,
+        ipa: k.ipa,
+        meaning: k.meaning,
+        srsStatus: k.srsStatus,
+        isInjected: k.isInjected ?? false,
+      }));
+
+      if (resolvedKeywords.length === 0 && state.adaptiveScaffold?.topicCollocations?.length) {
+        resolvedKeywords = state.adaptiveScaffold.topicCollocations.map((col: any) => ({
+          word: col.phrase,
+          ipa: col.ipa,
+          meaning: col.meaning,
+          srsStatus: 'unsaved',
+          isInjected: false,
+        }));
+      }
+
       const docData: Record<string, any> = {
         topic: state.resolvedTopic,
         question: state.generatedQuestion,
         level: state.level || 'B2',
-        targetKeywords: (state.targetKeywords || []).map(k => ({
-          word: k.word,
-          ipa: k.ipa,
-          meaning: k.meaning,
-          srsStatus: k.srsStatus,
-          isInjected: k.isInjected ?? false,
-        })),
+        targetKeywords: resolvedKeywords,
         prepScaffold: {
           point: { stage: 'point', ...state.prepScaffold.point },
           reason: { stage: 'reason', ...state.prepScaffold.reason },

@@ -45,6 +45,14 @@ export class CreateSpeakingQuizJobDto {
   targetKeywords?: string[];
 
   @ApiPropertyOptional({
+    description: 'Khung tư duy ưu tiên (nếu không chọn, hệ thống sẽ tự động chọn theo chủ đề)',
+    enum: ['PREP', 'PAR', 'STAR', 'CCR'],
+  })
+  @IsOptional()
+  @IsEnum(['PREP', 'PAR', 'STAR', 'CCR'])
+  preferredFramework?: 'PREP' | 'PAR' | 'STAR' | 'CCR';
+
+  @ApiPropertyOptional({
     description: 'Gắn cờ bắt buộc sinh mới bỏ qua câu hỏi đã tồn tại trong DB',
     default: false,
   })
