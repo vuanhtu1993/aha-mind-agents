@@ -18,6 +18,12 @@ export class TargetKeywordItem {
 
   @Prop({ required: true })
   meaning: string;
+
+  @Prop({ required: false, enum: ['due', 'learning', 'mastered', 'new', 'unsaved'] })
+  srsStatus?: string;
+
+  @Prop({ required: false, default: false })
+  isInjected?: boolean;
 }
 
 export const TargetKeywordItemSchema = SchemaFactory.createForClass(TargetKeywordItem);

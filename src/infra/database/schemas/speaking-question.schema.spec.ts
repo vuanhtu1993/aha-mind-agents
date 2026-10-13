@@ -29,4 +29,10 @@ describe('SpeakingQuestionSchema', () => {
     expect(hasStorybookIndex).toBeTruthy();
     expect(hasLevelIndex).toBeTruthy();
   });
+
+  it('should support srsStatus and isInjected in targetKeywords', () => {
+    const targetKeywordsSchema = (SpeakingQuestionSchema.paths['targetKeywords'] as any).schema;
+    expect(targetKeywordsSchema.paths['srsStatus']).toBeDefined();
+    expect(targetKeywordsSchema.paths['isInjected']).toBeDefined();
+  });
 });

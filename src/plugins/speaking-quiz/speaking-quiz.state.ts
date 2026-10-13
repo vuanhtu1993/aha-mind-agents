@@ -12,6 +12,8 @@ export interface TargetKeywordItemType {
   word: string;
   ipa?: string;
   meaning: string;
+  srsStatus?: 'due' | 'learning' | 'mastered' | 'new' | 'unsaved';
+  isInjected?: boolean;
 }
 
 export const SpeakingQuizState = Annotation.Root({
