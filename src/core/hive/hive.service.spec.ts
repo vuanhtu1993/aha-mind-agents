@@ -228,6 +228,38 @@ describe('HiveService', () => {
         service.invokeStructured(ItemsSchema, 'Task too large')
       ).rejects.toThrow('Hive reasoning model token limit exceeded');
     });
+
+    it('should throw descriptive error when finish_reason is length even with partial content', async () => {
+      const truncatedJson = `{
+  "items": [
+    {
+      "greeting": "Xin chào",
+      "count": 1
+    },
+    {
+      "greeting": "Hello",
+      "cou`;
+
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              finish_reason: 'length',
+              message: {
+                content: truncatedJson,
+                reasoning: 'Detailed reasoning...',
+              },
+            },
+          ],
+          usage: { prompt_tokens: 50, completion_tokens: 4096, total_tokens: 4146 },
+        },
+      });
+
+      await expect(
+        service.invokeStructured(ItemsSchema, 'Extract items')
+      ).rejects.toThrow('Hive reasoning model token limit exceeded');
+    });
   });
 
   describe('invokeStream', () => {

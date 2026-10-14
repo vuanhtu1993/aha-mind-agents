@@ -15,6 +15,7 @@ Rules:
 4. Provide the EXACT sentence (context) where the item appears in the text.
 5. Level: Assign a CEFR level to the item ("A1", "A2", "B1", "B2", "C1", or "C2"). B2/C1/C2 are preferred for challenging words.
 6. Ignore common A1-A2 words (like 'hello', 'because', 'beautiful') and proper nouns (names of people, places).
+7. Keep internal reasoning brief and concise. Focus directly on extracting keywords into the requested JSON format.
 
 Output valid JSON matching the schema.`;
 
@@ -26,7 +27,7 @@ export class KeywordIdentifierNode {
 
   public async invoke(state: StoryShadowingStateType): Promise<Partial<StoryShadowingStateType>> {
     // Đối với Text Pipeline: state.rawText có sẵn.
-    // Đối với YouTube Pipeline: state.rawText có thể rỗng, ta nối từ youtubeTranscript.
+    // Đối với YouTube Pipeline: state.rawText có thể rỗng, ta nối từ youtubeTranscript tự nhiên không giới hạn
     let textToAnalyze = state.rawText || '';
     if (!textToAnalyze && state.youtubeTranscript) {
       textToAnalyze = state.youtubeTranscript.map(t => t.text).join(' ');
@@ -43,7 +44,7 @@ export class KeywordIdentifierNode {
     const prompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
     const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
     const model = nodeConfig.model || state.config?.defaultModel;
-    const maxTokens = nodeConfig.maxTokens ?? 4096;
+    const maxTokens = nodeConfig.maxTokens ?? 16384;
 
     try {
       const messages = [

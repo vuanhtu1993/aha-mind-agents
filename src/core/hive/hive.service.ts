@@ -278,13 +278,14 @@ export class HiveService implements OnModuleInit {
       const content = choice?.message?.content;
       const usage = response.data?.usage || {};
 
-      // 1. Token Limit Guard đối với Reasoning Model
-      if (finishReason === 'length' && (!content || content.trim() === '')) {
+      // 1. Fail-Fast Token Limit Guard: Khi model bị ngắt do chạm trần max_tokens, dừng ngay và báo lỗi rõ ràng
+      if (finishReason === 'length') {
+        const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens ?? 'N/A';
         this.logger.error(
-          `❌ Mô hình Hive cạn kiệt tokens (Prompt: ${usage.prompt_tokens}, Reasoning: ${usage.completion_tokens_details?.reasoning_tokens || 'N/A'}, MaxTokens: ${maxTokens}).`
+          `❌ Mô hình Hive cạn kiệt tokens (finish_reason: length). Prompt: ${usage.prompt_tokens}, Completion: ${usage.completion_tokens}, Reasoning: ${reasoningTokens}, MaxTokens: ${maxTokens}.`
         );
         throw new Error(
-          'Hive reasoning model token limit exceeded (finish_reason: length). Please reduce prompt length or chunk size.'
+          `Hive reasoning model token limit exceeded (finish_reason: length). Prompt: ${usage.prompt_tokens}, Reasoning: ${reasoningTokens}, Max: ${maxTokens}. Please reduce prompt length, chunk size, or increase maxTokens.`
         );
       }
 

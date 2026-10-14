@@ -78,7 +78,7 @@ You MUST output a valid JSON object with the "items" key matching the schema:
     const prompt = nodeConfig.systemPrompt || defaultSystemPrompt;
     const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
     const model = nodeConfig.model || state.config?.defaultModel;
-    const maxTokens = nodeConfig.maxTokens ?? 8192;
+    const maxTokens = nodeConfig.maxTokens ?? 16384;
 
     try {
       // Tách riêng các từ đơn (word) để gọi Dictionary API

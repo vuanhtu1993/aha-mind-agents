@@ -54,7 +54,7 @@ export class StoryShadowingPlugin implements AgentPlugin {
             defaultConfig: {
               systemPrompt: `You are a professional lexicographer and curriculum designer for English learners. Your task is to identify and extract difficult vocabulary, idioms, and phrasal verbs from the provided English text.`,
               temperature: 0.1,
-              maxTokens: 4096
+              maxTokens: 16384
             }
           },
           {
@@ -65,7 +65,7 @@ export class StoryShadowingPlugin implements AgentPlugin {
             defaultConfig: {
               systemPrompt: `You are an English teacher explaining vocabulary to a B1-B2 learner.\nFor EACH item, provide a clear, simple explanation (in Vietnamese if helpful, or simple English) of what this item means EXACTLY IN THIS CONTEXT.`,
               temperature: 0.1,
-              maxTokens: 8192
+              maxTokens: 16384
             }
           }
         ],
@@ -104,7 +104,7 @@ export class StoryShadowingPlugin implements AgentPlugin {
             defaultConfig: {
               systemPrompt: `You are a professional lexicographer and curriculum designer for English learners. Your task is to identify and extract difficult vocabulary, idioms, and phrasal verbs from the provided English text.`,
               temperature: 0.1,
-              maxTokens: 4096
+              maxTokens: 16384
             }
           },
           {
@@ -115,7 +115,7 @@ export class StoryShadowingPlugin implements AgentPlugin {
             defaultConfig: {
               systemPrompt: `You are an English teacher explaining vocabulary to a B1-B2 learner.\nFor EACH item, provide a clear, simple explanation (in Vietnamese if helpful, or simple English) of what this item means EXACTLY IN THIS CONTEXT.`,
               temperature: 0.1,
-              maxTokens: 8192
+              maxTokens: 16384
             }
           }
         ],
