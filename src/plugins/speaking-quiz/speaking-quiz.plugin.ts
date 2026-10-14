@@ -38,18 +38,20 @@ export class SpeakingQuizPlugin implements AgentPlugin {
             id: 'questionFormulator',
             type: 'llm',
             displayName: 'Tạo câu hỏi tranh luận phản biện',
-            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            configurableOptions: ['systemPrompt', 'model', 'temperature', 'maxTokens'],
             defaultConfig: {
               temperature: 0.3,
+              maxTokens: 2048,
             },
           },
           {
             id: 'prepSynthesizer',
             type: 'llm',
             displayName: 'Tổng hợp giàn giáo PREP & Model Answer',
-            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            configurableOptions: ['systemPrompt', 'model', 'temperature', 'maxTokens'],
             defaultConfig: {
               temperature: 0.2,
+              maxTokens: 8192,
             },
           },
           {

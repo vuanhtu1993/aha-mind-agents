@@ -33,10 +33,11 @@ export class StoryShadowingPlugin implements AgentPlugin {
             id: 'sentenceSplitter',
             type: 'llm',
             displayName: 'Phân tách câu & Phiên âm IPA',
-            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            configurableOptions: ['systemPrompt', 'model', 'temperature', 'maxTokens'],
             defaultConfig: {
               systemPrompt: `You are a language learning assistant and phonetics expert.\nGiven a raw English text, break it down into natural, logical sentences for shadowing practice.`,
-              temperature: 0.1
+              temperature: 0.1,
+              maxTokens: 4096
             }
           },
           {
@@ -49,20 +50,22 @@ export class StoryShadowingPlugin implements AgentPlugin {
             id: 'keywordIdentifier',
             type: 'llm',
             displayName: 'Trích xuất từ vựng khó',
-            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            configurableOptions: ['systemPrompt', 'model', 'temperature', 'maxTokens'],
             defaultConfig: {
               systemPrompt: `You are a professional lexicographer and curriculum designer for English learners. Your task is to identify and extract difficult vocabulary, idioms, and phrasal verbs from the provided English text.`,
-              temperature: 0.1
+              temperature: 0.1,
+              maxTokens: 4096
             }
           },
           {
             id: 'keywordEnricher',
             type: 'llm',
             displayName: 'Giải nghĩa từ vựng',
-            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            configurableOptions: ['systemPrompt', 'model', 'temperature', 'maxTokens'],
             defaultConfig: {
               systemPrompt: `You are an English teacher explaining vocabulary to a B1-B2 learner.\nFor EACH item, provide a clear, simple explanation (in Vietnamese if helpful, or simple English) of what this item means EXACTLY IN THIS CONTEXT.`,
-              temperature: 0.1
+              temperature: 0.1,
+              maxTokens: 8192
             }
           }
         ],
@@ -86,30 +89,33 @@ export class StoryShadowingPlugin implements AgentPlugin {
             id: 'youtubeConsolidator',
             type: 'llm',
             displayName: 'Xử lý gộp câu & Phiên âm IPA',
-            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            configurableOptions: ['systemPrompt', 'model', 'temperature', 'maxTokens'],
             defaultConfig: {
               systemPrompt: `You are an expert linguist and audio synchronizer.\nYour task is to take a list of raw subtitle fragments from YouTube and consolidate them into complete, grammatically correct, natural-sounding sentences.`,
-              temperature: 0.1
+              temperature: 0.1,
+              maxTokens: 16384
             }
           },
           {
             id: 'keywordIdentifier',
             type: 'llm',
             displayName: 'Trích xuất từ vựng khó',
-            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            configurableOptions: ['systemPrompt', 'model', 'temperature', 'maxTokens'],
             defaultConfig: {
               systemPrompt: `You are a professional lexicographer and curriculum designer for English learners. Your task is to identify and extract difficult vocabulary, idioms, and phrasal verbs from the provided English text.`,
-              temperature: 0.1
+              temperature: 0.1,
+              maxTokens: 4096
             }
           },
           {
             id: 'keywordEnricher',
             type: 'llm',
             displayName: 'Giải nghĩa từ vựng',
-            configurableOptions: ['systemPrompt', 'model', 'temperature'],
+            configurableOptions: ['systemPrompt', 'model', 'temperature', 'maxTokens'],
             defaultConfig: {
               systemPrompt: `You are an English teacher explaining vocabulary to a B1-B2 learner.\nFor EACH item, provide a clear, simple explanation (in Vietnamese if helpful, or simple English) of what this item means EXACTLY IN THIS CONTEXT.`,
-              temperature: 0.1
+              temperature: 0.1,
+              maxTokens: 8192
             }
           }
         ],

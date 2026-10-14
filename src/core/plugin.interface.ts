@@ -30,6 +30,7 @@ export interface NodeMetadata {
     systemPrompt?: string;
     model?: string;
     temperature?: number;
+    maxTokens?: number;
   };
 }
 

@@ -14,6 +14,7 @@ export class AgentConfig extends Document {
     systemPrompt?: string;
     model?: string;
     temperature?: number;
+    maxTokens?: number;
   }>;
 
   @Prop({ default: 0.1, min: 0, max: 1 })
