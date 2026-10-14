@@ -35,6 +35,7 @@ export class SentenceSplitterNode {
     const prompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
     const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
     const model = nodeConfig.model || state.config?.defaultModel;
+    const maxTokens = nodeConfig.maxTokens ?? 4096;
 
     try {
       const response = await this.hive.invokeStructured(
@@ -43,7 +44,7 @@ export class SentenceSplitterNode {
           { role: 'system', content: prompt },
           { role: 'user', content: `Please split and phonetically transcribe the following text:\n\n${state.rawText}` }
         ],
-        { temperature: temp, model: model, name: 'sentence_splitter' }
+        { temperature: temp, model: model, maxTokens, name: 'sentence_splitter' }
       );
 
       this.logger.log(`✅ Phân tách thành công ${response.parsed.sentences.length} câu.`);

@@ -43,6 +43,7 @@ export class KeywordIdentifierNode {
     const prompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
     const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
     const model = nodeConfig.model || state.config?.defaultModel;
+    const maxTokens = nodeConfig.maxTokens ?? 4096;
 
     try {
       const messages = [
@@ -53,7 +54,7 @@ export class KeywordIdentifierNode {
       const response = await this.hive.invokeStructured(
         IdentifiedKeywordListSchema,
         messages,
-        { temperature: temp, model: model, name: 'extract_difficult_keywords' }
+        { temperature: temp, model: model, maxTokens, name: 'extract_difficult_keywords' }
       );
 
       this.logger.log(`✅ Trích xuất thành công ${response.parsed.items.length} từ vựng khó.`);

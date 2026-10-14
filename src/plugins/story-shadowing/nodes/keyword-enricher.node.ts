@@ -78,6 +78,7 @@ You MUST output a valid JSON object with the "items" key matching the schema:
     const prompt = nodeConfig.systemPrompt || defaultSystemPrompt;
     const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
     const model = nodeConfig.model || state.config?.defaultModel;
+    const maxTokens = nodeConfig.maxTokens ?? 8192;
 
     try {
       // Tách riêng các từ đơn (word) để gọi Dictionary API
@@ -88,7 +89,7 @@ You MUST output a valid JSON object with the "items" key matching the schema:
         this.hive.invokeStructured(GeminiBatchKeywordEnrichSchema, [
           { role: 'system', content: prompt },
           { role: 'user', content: this.getBatchEnrichmentUserPrompt(state.identifiedKeywords) }
-        ], { temperature: temp, model: model, name: 'enrich_keywords' }),
+        ], { temperature: temp, model: model, maxTokens, name: 'enrich_keywords' }),
         Promise.all(wordItems.map(item => this.fetchDictionaryIpa(item.word)))
       ]);
 

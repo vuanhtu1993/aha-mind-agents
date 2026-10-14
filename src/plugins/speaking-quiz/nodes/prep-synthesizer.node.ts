@@ -57,7 +57,13 @@ export class PrepSynthesizerNode {
 
     this.logger.log(`Đang tổng hợp giàn giáo thích ứng cho câu hỏi: "${state.generatedQuestion}"`);
 
-    const promptTemplate = SYSTEM_PROMPT.replace(/{LEVEL}/g, state.level || 'B2');
+    const nodeConfig = state.config?.nodeOverrides?.['prepSynthesizer'] || {};
+    const basePrompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
+    const promptTemplate = basePrompt.replace(/{LEVEL}/g, state.level || 'B2');
+    const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.2;
+    const model = nodeConfig.model || state.config?.defaultModel;
+    const maxTokens = nodeConfig.maxTokens ?? 8192;
+
     const keywordStr = (state.targetKeywords || [])
       .map(k => `"${k.word}" (${k.meaning})`)
       .join(', ');
@@ -86,7 +92,7 @@ Provide 2-4 native topic collocations with Vietnamese meanings, and construct al
             { role: 'system', content: promptTemplate },
             { role: 'user', content: attempt === 0 ? userPrompt : `${userPrompt}\n\nNote: Ensure all 4 stages and collocations are complete and valid.` },
           ],
-          { temperature: 0.2, name: 'prep_synthesizer' },
+          { temperature: temp, model, maxTokens, name: 'prep_synthesizer' },
         );
 
         this.logger.log(`✅ Giàn giáo thích ứng (${response.parsed.frameworkType}) hoàn thành sau ${attempt + 1} lần thực thi.`);

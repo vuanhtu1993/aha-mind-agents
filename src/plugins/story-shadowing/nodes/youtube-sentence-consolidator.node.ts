@@ -70,6 +70,7 @@ export class YoutubeSentenceConsolidatorNode {
       const prompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
       const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
       const model = nodeConfig.model || state.config?.defaultModel;
+      const maxTokens = nodeConfig.maxTokens ?? 16384;
 
       for (let i = 0; i < transcriptToProcess.length; i += CHUNK_SIZE) {
         const chunk = transcriptToProcess.slice(i, i + CHUNK_SIZE);
@@ -93,7 +94,7 @@ export class YoutubeSentenceConsolidatorNode {
             {
               temperature: temp,
               model: model,
-              maxTokens: 8192,
+              maxTokens: maxTokens,
               name: 'youtube_sentence_consolidator',
             }
           )

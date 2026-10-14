@@ -43,7 +43,12 @@ export class QuestionFormulatorNode {
 
     this.logger.log(`Đang sinh câu hỏi luyện nói cho chủ đề: "${state.resolvedTopic}" [Level: ${state.level}]`);
 
-    const promptTemplate = SYSTEM_PROMPT.replace('{LEVEL}', state.level || 'B2');
+    const nodeConfig = state.config?.nodeOverrides?.['questionFormulator'] || {};
+    const basePrompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
+    const promptTemplate = basePrompt.replace('{LEVEL}', state.level || 'B2');
+    const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.3;
+    const model = nodeConfig.model || state.config?.defaultModel;
+    const maxTokens = nodeConfig.maxTokens ?? 2048;
     const keywordList = (state.targetKeywords || []).map(k => k.word).join(', ');
 
     const frameworkHint = state.preferredFramework
@@ -70,7 +75,7 @@ Generate a punchy, spoken English prompt (under 20 words) and specify the sugges
           { role: 'system', content: promptTemplate },
           { role: 'user', content: userPrompt },
         ],
-        { temperature: 0.3, name: 'question_formulator' },
+        { temperature: temp, model, maxTokens, name: 'question_formulator' },
       );
 
       const chosenFramework = state.preferredFramework || response.parsed.suggestedFramework || 'PAR';

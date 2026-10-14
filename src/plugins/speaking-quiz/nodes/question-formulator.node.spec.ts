@@ -49,4 +49,47 @@ describe('QuestionFormulatorNode', () => {
 
     expect(result.error).toContain('Không thể tạo câu hỏi luyện nói');
   });
+
+  it('should respect custom nodeOverrides for model, temperature, maxTokens, and systemPrompt', async () => {
+    (mockHiveService.invokeStructured as jest.Mock).mockResolvedValueOnce({
+      parsed: {
+        question: 'Should schools ban smartphones?',
+        suggestedFramework: 'PREP',
+      },
+      usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+    });
+
+    const state: any = {
+      resolvedTopic: 'Smartphones in School',
+      level: 'B2',
+      config: {
+        defaultModel: 'global-fallback-model',
+        nodeOverrides: {
+          questionFormulator: {
+            model: 'deepseek-v4.1-flash',
+            temperature: 0.7,
+            maxTokens: 2048,
+            systemPrompt: 'Custom pedagogical instructions for {LEVEL}',
+          },
+        },
+      },
+    };
+
+    await node.invoke(state);
+
+    expect(mockHiveService.invokeStructured).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'system',
+          content: expect.stringContaining('Custom pedagogical instructions for B2'),
+        }),
+      ]),
+      expect.objectContaining({
+        model: 'deepseek-v4.1-flash',
+        temperature: 0.7,
+        maxTokens: 2048,
+      }),
+    );
+  });
 });
