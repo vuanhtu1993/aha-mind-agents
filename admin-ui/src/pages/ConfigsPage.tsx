@@ -1,6 +1,18 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { Save, Bot, Activity, Settings2, Info, RefreshCw, RotateCcw, CheckCircle2, Sparkles, AlertTriangle } from 'lucide-react';
+import { 
+  Save, 
+  Bot, 
+  Activity, 
+  Settings2, 
+  Info, 
+  RefreshCw, 
+  RotateCcw, 
+  CheckCircle2, 
+  Sparkles, 
+  AlertTriangle,
+  Loader2
+} from 'lucide-react';
 import { ReactFlow, Controls, Background, useNodesState, useEdgesState, MarkerType } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import Editor from '@monaco-editor/react';
@@ -33,7 +45,11 @@ export default function ConfigsPage() {
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   
-  const [config, setConfig] = useState<any>({ nodeOverrides: {} });
+  // savedConfig: Cấu hình lưu trữ trên server / DB
+  const [savedConfig, setSavedConfig] = useState<any>({ nodeOverrides: {} });
+  // draftConfig: Cấu hình đang sửa trên form (chỉ gửi lên server khi click Save)
+  const [draftConfig, setDraftConfig] = useState<any>({ nodeOverrides: {} });
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -44,7 +60,12 @@ export default function ConfigsPage() {
   
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // Fetch plugins
+  // Phát hiện xem người dùng đã sửa đổi nhưng chưa lưu hay chưa
+  const isDirty = useMemo(() => {
+    return JSON.stringify(savedConfig?.nodeOverrides || {}) !== JSON.stringify(draftConfig?.nodeOverrides || {});
+  }, [savedConfig, draftConfig]);
+
+  // Fetch danh sách plugins
   useEffect(() => {
     axios.get('/api/v1/dashboard/plugins')
       .then(res => {
@@ -60,18 +81,25 @@ export default function ConfigsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Fetch config for selected agent
+  // Fetch cấu hình của agent được chọn từ server
   useEffect(() => {
     if (!selectedAgentId) return;
     axios.get(`/api/v1/dashboard/configs/${selectedAgentId}`)
       .then(res => {
-        setConfig({ ...res.data, nodeOverrides: res.data.nodeOverrides || {} });
+        const configData = { ...res.data, nodeOverrides: res.data.nodeOverrides || {} };
+        setSavedConfig(configData);
+        setDraftConfig(configData);
         setMessage('');
       })
       .catch(console.error);
   }, [selectedAgentId]);
 
-  // Map Pipeline Data to React Flow
+  // Reset node selection CHỈ KHI chuyển đổi agent hoặc pipeline
+  useEffect(() => {
+    setSelectedNodeId(null);
+  }, [selectedAgentId, selectedPipelineId]);
+
+  // Map Pipeline Data lên React Flow dựa trên savedConfig (không render lại khi đang gõ draft)
   useEffect(() => {
     if (!selectedAgentId || !selectedPipelineId || plugins.length === 0) return;
     const plugin = plugins.find(p => p.id === selectedAgentId);
@@ -79,12 +107,9 @@ export default function ConfigsPage() {
     const pipeline = plugin.metadata?.pipelines?.find((p: any) => p.id === selectedPipelineId);
     if (!pipeline) return;
 
-    // Reset selection when switching pipelines
-    setSelectedNodeId(null);
-
-    // Calculate basic Top-Down Layout
+    // Render nodes phản ánh trạng thái đã lưu
     const initialNodes = pipeline.nodes?.map((n: any, idx: number) => {
-      const nodeOverride = config.nodeOverrides?.[n.id];
+      const nodeOverride = savedConfig.nodeOverrides?.[n.id];
       const driftStatus = calculateDriftStatus(n, nodeOverride);
       const configuredModel = nodeOverride?.model || n.defaultConfig?.model;
       return {
@@ -110,37 +135,45 @@ export default function ConfigsPage() {
 
     setNodes(initialNodes);
     setEdges(initialEdges);
-  }, [selectedAgentId, selectedPipelineId, plugins, config.nodeOverrides]);
+  }, [selectedAgentId, selectedPipelineId, plugins, savedConfig]);
 
   const onNodeClick = useCallback((_: any, node: any) => {
     setSelectedNodeId(node.id);
   }, []);
 
+  // Chỉ khi bấm Lưu mới gửi API cập nhật server và cập nhật graph
   const handleSave = async () => {
+    if (!selectedAgentId || saving) return;
     setSaving(true);
     setMessage('');
     try {
-      await axios.put(`/api/v1/dashboard/configs/${selectedAgentId}`, {
-        nodeOverrides: config.nodeOverrides
+      const res = await axios.put(`/api/v1/dashboard/configs/${selectedAgentId}`, {
+        nodeOverrides: draftConfig.nodeOverrides
       });
-      setMessage('✅ Configuration saved successfully!');
+      const updated = { ...res.data, nodeOverrides: res.data.nodeOverrides || {} };
+      setSavedConfig(updated);
+      setDraftConfig(updated);
+      setMessage('✅ Đã lưu cấu hình thành công!');
       setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      setMessage('❌ Failed to save configuration.');
+      setMessage(`❌ Lỗi khi lưu cấu hình: ${error.response?.data?.message || error.message}`);
     } finally {
       setSaving(false);
     }
   };
 
+  // Đồng bộ metadata từ Code
   const handleSyncWithCode = async () => {
-    if (!selectedAgentId) return;
+    if (!selectedAgentId || syncing) return;
     setSyncing(true);
     setMessage('');
     try {
       const res = await axios.post(`/api/v1/dashboard/configs/${selectedAgentId}/sync`);
-      setConfig({ ...res.data, nodeOverrides: res.data.nodeOverrides || {} });
-      setMessage('✅ Đã đồng bộ với cấu hình mới nhất từ Plugin Code thành công!');
+      const updated = { ...res.data, nodeOverrides: res.data.nodeOverrides || {} };
+      setSavedConfig(updated);
+      setDraftConfig(updated);
+      setMessage('✅ Đã đồng bộ với cấu hình mới nhất từ Code!');
       setTimeout(() => setMessage(''), 4000);
     } catch (err: any) {
       console.error(err);
@@ -150,19 +183,21 @@ export default function ConfigsPage() {
     }
   };
 
+  // Chỉ cập nhật draftConfig trong phiên làm việc, không lưu vào DB
   const updateNodeConfig = (nodeId: string, field: string, value: any) => {
-    setConfig((prev: any) => ({
+    setDraftConfig((prev: any) => ({
       ...prev,
       nodeOverrides: {
         ...prev.nodeOverrides,
         [nodeId]: {
-          ...prev.nodeOverrides[nodeId],
+          ...prev.nodeOverrides?.[nodeId],
           [field]: value
         }
       }
     }));
   };
 
+  // Khôi phục giá trị mặc định vào draftConfig
   const handleResetToDefault = (nodeId: string) => {
     const plugin = plugins.find(p => p.id === selectedAgentId);
     const pipeline = plugin?.metadata?.pipelines?.find((p: any) => p.id === selectedPipelineId);
@@ -170,7 +205,7 @@ export default function ConfigsPage() {
     if (!nodeMeta) return;
 
     const def = nodeMeta.defaultConfig || {};
-    setConfig((prev: any) => ({
+    setDraftConfig((prev: any) => ({
       ...prev,
       nodeOverrides: {
         ...prev.nodeOverrides,
@@ -182,7 +217,7 @@ export default function ConfigsPage() {
         }
       }
     }));
-    setMessage(`🔄 Đã khôi phục cài đặt mặc định từ code cho node "${nodeMeta.displayName || nodeId}". Hãy bấm "Save Changes" để lưu.`);
+    setMessage(`🔄 Đã khôi phục giá trị mặc định từ code cho node "${nodeMeta.displayName || nodeId}". Nhấn nút Lưu để áp dụng.`);
     setTimeout(() => setMessage(''), 4000);
   };
 
@@ -191,13 +226,13 @@ export default function ConfigsPage() {
   const plugin = plugins.find(p => p.id === selectedAgentId);
   const pipeline = plugin?.metadata?.pipelines?.find((p: any) => p.id === selectedPipelineId);
   
-  // Find selected node original metadata
+  // Tìm node đang chọn và cấu hình tương ứng trong draftConfig
   const selectedNodeMeta = pipeline?.nodes?.find((n: any) => n.id === selectedNodeId);
   const isSelectedLLM = selectedNodeMeta?.type === 'llm';
-  const currentNodeConfig = selectedNodeMeta ? (config.nodeOverrides[selectedNodeMeta.id] || {}) : {};
+  const currentNodeConfig = selectedNodeMeta ? (draftConfig.nodeOverrides?.[selectedNodeMeta.id] || {}) : {};
   const currentDriftStatus = selectedNodeMeta ? calculateDriftStatus(selectedNodeMeta, currentNodeConfig) : 'synced';
 
-  // Determine preset dropdown value
+  // Xác định giá trị preset của dropdown model
   const isPresetValue = PRESET_MODELS.some(p => p.value !== 'custom' && p.value === (currentNodeConfig.model || ''));
   const presetDropdownValue = isPresetValue ? (currentNodeConfig.model || '') : 'custom';
 
@@ -212,9 +247,9 @@ export default function ConfigsPage() {
           <p className="text-slate-500 mt-1 text-sm">Visualize pipeline graph, detect configuration drift, and tune LLM parameters.</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <select 
-            className="bg-white border border-slate-200 rounded-lg px-4 py-2 font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
+            className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
             value={selectedAgentId}
             onChange={e => {
               setSelectedAgentId(e.target.value);
@@ -226,9 +261,10 @@ export default function ConfigsPage() {
               <option key={p.id} value={p.id}>{p.displayName || p.id}</option>
             ))}
           </select>
+
           {plugin?.metadata?.pipelines && (
             <select 
-              className="bg-white border border-slate-200 rounded-lg px-4 py-2 font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
+              className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
               value={selectedPipelineId}
               onChange={e => setSelectedPipelineId(e.target.value)}
             >
@@ -237,22 +273,36 @@ export default function ConfigsPage() {
               ))}
             </select>
           )}
+
+          {/* Sync Button: Icon only với trạng thái loading */}
           <button 
             onClick={handleSyncWithCode}
             disabled={syncing}
-            title="Đồng bộ danh sách node và cấu hình mặc định từ mã nguồn plugin"
-            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center shadow-sm disabled:opacity-50"
+            title="Đồng bộ cấu hình từ Code (Sync with Code)"
+            className="w-9 h-9 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-blue-600 rounded-lg shadow-sm transition-all flex items-center justify-center disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 text-blue-600 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync with Code'}
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin text-blue-600' : ''}`} />
           </button>
+
+          {/* Save Button: Icon only với loading spinner và dirty indicator */}
           <button 
             onClick={handleSave}
-            disabled={saving}
-            className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-lg font-medium transition-colors flex items-center shadow-md disabled:opacity-50"
+            disabled={saving || !isDirty}
+            title={isDirty ? "Lưu thay đổi (Save Changes)" : "Không có thay đổi cần lưu"}
+            className={`w-9 h-9 rounded-lg shadow-sm transition-all flex items-center justify-center relative ${
+              isDirty
+                ? 'bg-blue-600 hover:bg-blue-700 text-white ring-2 ring-blue-500/20'
+                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+            } disabled:opacity-50`}
           >
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {isDirty && !saving && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white animate-pulse" />
+            )}
           </button>
         </div>
       </div>
@@ -313,10 +363,10 @@ export default function ConfigsPage() {
                 {isSelectedLLM && (
                   <button
                     onClick={() => handleResetToDefault(selectedNodeMeta.id)}
-                    className="text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1 bg-white hover:bg-slate-100 px-2.5 py-1 rounded border border-slate-200 shadow-sm transition-colors"
-                    title="Khôi phục model, prompt, temperature, maxTokens từ code gốc"
+                    className="w-7 h-7 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 rounded border border-slate-200 shadow-sm transition-colors flex items-center justify-center"
+                    title="Khôi phục mặc định từ Code (Reset to Code Default)"
                   >
-                    <RotateCcw className="w-3 h-3" /> Reset
+                    <RotateCcw className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
@@ -362,8 +412,8 @@ export default function ConfigsPage() {
                           height="100%"
                           defaultLanguage="markdown"
                           theme="light"
-                          value={currentNodeConfig.systemPrompt || selectedNodeMeta.defaultConfig?.systemPrompt || ''}
-                          onChange={(value) => updateNodeConfig(selectedNodeMeta.id, 'systemPrompt', value)}
+                          value={currentNodeConfig.systemPrompt !== undefined ? currentNodeConfig.systemPrompt : (selectedNodeMeta.defaultConfig?.systemPrompt || '')}
+                          onChange={(value) => updateNodeConfig(selectedNodeMeta.id, 'systemPrompt', value || '')}
                           options={{
                             minimap: { enabled: false },
                             wordWrap: 'on',
