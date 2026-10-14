@@ -1,12 +1,32 @@
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
-import { Save, Bot, Activity, Settings2, Info } from 'lucide-react';
+import { Save, Bot, Activity, Settings2, Info, RefreshCw, RotateCcw, CheckCircle2, Sparkles, AlertTriangle } from 'lucide-react';
 import { ReactFlow, Controls, Background, useNodesState, useEdgesState, MarkerType } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import Editor from '@monaco-editor/react';
 import AgentGraphNode from '../components/AgentGraphNode';
 
 const nodeTypes = { custom: AgentGraphNode };
+
+const PRESET_MODELS = [
+  { value: '', label: '⚡ Kế thừa mặc định (Inherit Default)' },
+  { value: 'zai-org/glm-5.3-flash', label: 'GLM 5.3 Flash (Mặc định Hive)' },
+  { value: 'deepseek-v4.1-flash', label: 'DeepSeek v4.1 Flash (Reasoning)' },
+  { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'custom', label: '✏️ Model khác (Tự nhập tên)' },
+];
+
+const calculateDriftStatus = (nodeMeta: any, nodeConfig: any): 'synced' | 'modified' | 'new' => {
+  if (!nodeConfig) return 'new';
+  const def = nodeMeta.defaultConfig || {};
+  const hasDiff =
+    (nodeConfig.model !== undefined && nodeConfig.model !== def.model) ||
+    (nodeConfig.systemPrompt !== undefined && nodeConfig.systemPrompt !== def.systemPrompt) ||
+    (nodeConfig.temperature !== undefined && nodeConfig.temperature !== def.temperature) ||
+    (nodeConfig.maxTokens !== undefined && nodeConfig.maxTokens !== def.maxTokens);
+  return hasDiff ? 'modified' : 'synced';
+};
 
 export default function ConfigsPage() {
   const [plugins, setPlugins] = useState<any[]>([]);
@@ -16,6 +36,7 @@ export default function ConfigsPage() {
   const [config, setConfig] = useState<any>({ nodeOverrides: {} });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState('');
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -62,12 +83,21 @@ export default function ConfigsPage() {
     setSelectedNodeId(null);
 
     // Calculate basic Top-Down Layout
-    const initialNodes = pipeline.nodes?.map((n: any, idx: number) => ({
-      id: n.id,
-      type: 'custom',
-      position: { x: 250, y: 50 + idx * 150 }, // Simple vertical layout
-      data: { ...n },
-    })) || [];
+    const initialNodes = pipeline.nodes?.map((n: any, idx: number) => {
+      const nodeOverride = config.nodeOverrides?.[n.id];
+      const driftStatus = calculateDriftStatus(n, nodeOverride);
+      const configuredModel = nodeOverride?.model || n.defaultConfig?.model;
+      return {
+        id: n.id,
+        type: 'custom',
+        position: { x: 250, y: 50 + idx * 150 },
+        data: {
+          ...n,
+          configuredModel,
+          driftStatus,
+        },
+      };
+    }) || [];
 
     const initialEdges = pipeline.edges?.map((e: any, idx: number) => ({
       id: `e-${e.source}-${e.target}-${idx}`,
@@ -80,7 +110,7 @@ export default function ConfigsPage() {
 
     setNodes(initialNodes);
     setEdges(initialEdges);
-  }, [selectedAgentId, selectedPipelineId, plugins]);
+  }, [selectedAgentId, selectedPipelineId, plugins, config.nodeOverrides]);
 
   const onNodeClick = useCallback((_: any, node: any) => {
     setSelectedNodeId(node.id);
@@ -103,6 +133,23 @@ export default function ConfigsPage() {
     }
   };
 
+  const handleSyncWithCode = async () => {
+    if (!selectedAgentId) return;
+    setSyncing(true);
+    setMessage('');
+    try {
+      const res = await axios.post(`/api/v1/dashboard/configs/${selectedAgentId}/sync`);
+      setConfig({ ...res.data, nodeOverrides: res.data.nodeOverrides || {} });
+      setMessage('✅ Đã đồng bộ với cấu hình mới nhất từ Plugin Code thành công!');
+      setTimeout(() => setMessage(''), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setMessage(`❌ Lỗi đồng bộ: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const updateNodeConfig = (nodeId: string, field: string, value: any) => {
     setConfig((prev: any) => ({
       ...prev,
@@ -116,6 +163,29 @@ export default function ConfigsPage() {
     }));
   };
 
+  const handleResetToDefault = (nodeId: string) => {
+    const plugin = plugins.find(p => p.id === selectedAgentId);
+    const pipeline = plugin?.metadata?.pipelines?.find((p: any) => p.id === selectedPipelineId);
+    const nodeMeta = pipeline?.nodes?.find((n: any) => n.id === nodeId);
+    if (!nodeMeta) return;
+
+    const def = nodeMeta.defaultConfig || {};
+    setConfig((prev: any) => ({
+      ...prev,
+      nodeOverrides: {
+        ...prev.nodeOverrides,
+        [nodeId]: {
+          systemPrompt: def.systemPrompt,
+          model: def.model,
+          temperature: def.temperature,
+          maxTokens: def.maxTokens,
+        }
+      }
+    }));
+    setMessage(`🔄 Đã khôi phục cài đặt mặc định từ code cho node "${nodeMeta.displayName || nodeId}". Hãy bấm "Save Changes" để lưu.`);
+    setTimeout(() => setMessage(''), 4000);
+  };
+
   if (loading) return <div className="p-8 text-center text-slate-500">Loading configurations...</div>;
 
   const plugin = plugins.find(p => p.id === selectedAgentId);
@@ -125,6 +195,11 @@ export default function ConfigsPage() {
   const selectedNodeMeta = pipeline?.nodes?.find((n: any) => n.id === selectedNodeId);
   const isSelectedLLM = selectedNodeMeta?.type === 'llm';
   const currentNodeConfig = selectedNodeMeta ? (config.nodeOverrides[selectedNodeMeta.id] || {}) : {};
+  const currentDriftStatus = selectedNodeMeta ? calculateDriftStatus(selectedNodeMeta, currentNodeConfig) : 'synced';
+
+  // Determine preset dropdown value
+  const isPresetValue = PRESET_MODELS.some(p => p.value !== 'custom' && p.value === (currentNodeConfig.model || ''));
+  const presetDropdownValue = isPresetValue ? (currentNodeConfig.model || '') : 'custom';
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
@@ -134,7 +209,7 @@ export default function ConfigsPage() {
           <h2 className="text-2xl font-bold text-slate-800 flex items-center">
             <Settings2 className="w-6 h-6 mr-2 text-primary" /> Agent Configuration
           </h2>
-          <p className="text-slate-500 mt-1 text-sm">Visualize pipeline graph and tune LLM prompts dynamically.</p>
+          <p className="text-slate-500 mt-1 text-sm">Visualize pipeline graph, detect configuration drift, and tune LLM parameters.</p>
         </div>
         
         <div className="flex items-center gap-3">
@@ -163,6 +238,15 @@ export default function ConfigsPage() {
             </select>
           )}
           <button 
+            onClick={handleSyncWithCode}
+            disabled={syncing}
+            title="Đồng bộ danh sách node và cấu hình mặc định từ mã nguồn plugin"
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 text-blue-600 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync with Code'}
+          </button>
+          <button 
             onClick={handleSave}
             disabled={saving}
             className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-lg font-medium transition-colors flex items-center shadow-md disabled:opacity-50"
@@ -174,7 +258,7 @@ export default function ConfigsPage() {
       </div>
 
       {message && (
-        <div className={`p-3 rounded-lg font-medium text-sm mb-4 shrink-0 ${message.includes('✅') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+        <div className={`p-3 rounded-lg font-medium text-sm mb-4 shrink-0 ${message.includes('✅') || message.includes('🔄') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           {message}
         </div>
       )}
@@ -183,9 +267,12 @@ export default function ConfigsPage() {
       <div className="flex-1 flex gap-6 overflow-hidden">
         {/* LEFT PANE: GRAPH */}
         <div className="flex-[3] bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-          <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur border border-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 shadow-sm flex items-center">
-            <Activity className="w-4 h-4 mr-2 text-primary" />
-            Execution Graph
+          <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur border border-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 shadow-sm flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" />
+            <span>Execution Graph</span>
+            <span className="text-xs text-slate-400 font-normal border-l border-slate-200 pl-2">
+              Chấm cam: Đã tùy biến cấu hình
+            </span>
           </div>
           <ReactFlow 
             nodes={nodes} 
@@ -204,8 +291,36 @@ export default function ConfigsPage() {
 
         {/* RIGHT PANE: CONFIGURATION */}
         <div className="flex-[2] bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-          <div className="bg-slate-50 border-b border-slate-200 px-6 py-4">
+          <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
             <h3 className="text-lg font-bold text-slate-800">Node Configuration</h3>
+            {selectedNodeId && selectedNodeMeta && (
+              <div className="flex items-center gap-2">
+                {currentDriftStatus === 'synced' && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Khớp Code
+                  </span>
+                )}
+                {currentDriftStatus === 'modified' && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                    <Sparkles className="w-3.5 h-3.5" /> Đã tùy biến
+                  </span>
+                )}
+                {currentDriftStatus === 'new' && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Mới từ Code
+                  </span>
+                )}
+                {isSelectedLLM && (
+                  <button
+                    onClick={() => handleResetToDefault(selectedNodeMeta.id)}
+                    className="text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1 bg-white hover:bg-slate-100 px-2.5 py-1 rounded border border-slate-200 shadow-sm transition-colors"
+                    title="Khôi phục model, prompt, temperature, maxTokens từ code gốc"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Reset
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           
           <div className="flex-1 overflow-y-auto p-6">
@@ -242,7 +357,7 @@ export default function ConfigsPage() {
                         System Prompt
                         <span className="text-xs font-normal text-slate-400">Controls AI Behavior</span>
                       </label>
-                      <div className="border border-slate-300 rounded-xl overflow-hidden shadow-sm h-[300px] focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all">
+                      <div className="border border-slate-300 rounded-xl overflow-hidden shadow-sm h-[260px] focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all">
                         <Editor
                           height="100%"
                           defaultLanguage="markdown"
@@ -262,17 +377,57 @@ export default function ConfigsPage() {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-5">
-                      <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Model</label>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Model</label>
+                      <select
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm text-slate-700 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all shadow-sm mb-2"
+                        value={presetDropdownValue}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'custom') {
+                            updateNodeConfig(selectedNodeMeta.id, 'model', currentNodeConfig.model || 'deepseek-v4.1-flash');
+                          } else {
+                            updateNodeConfig(selectedNodeMeta.id, 'model', val);
+                          }
+                        }}
+                      >
+                        {PRESET_MODELS.map(p => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </select>
+
+                      {presetDropdownValue === 'custom' && (
                         <input 
                           type="text"
-                          className="w-full bg-white border border-slate-300 rounded-lg p-3 text-sm text-slate-700 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all shadow-sm"
-                          placeholder={selectedNodeMeta.defaultConfig?.model || 'Inherit Default'}
+                          className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm text-slate-700 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all shadow-sm"
+                          placeholder="Nhập tên model custom (vd: deepseek-v4.1-flash, mistral-large...)"
                           value={currentNodeConfig.model || ''}
                           onChange={(e) => updateNodeConfig(selectedNodeMeta.id, 'model', e.target.value)}
                         />
+                      )}
+                      <p className="text-xs text-slate-400 mt-1">
+                        Mặc định từ code: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600">{selectedNodeMeta.defaultConfig?.model || 'Inherit Default'}</code>
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Max Tokens</label>
+                        <input 
+                          type="number"
+                          step="512"
+                          min="256"
+                          max="65536"
+                          className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm text-slate-700 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all shadow-sm"
+                          placeholder={selectedNodeMeta.defaultConfig?.maxTokens?.toString() || '4096'}
+                          value={currentNodeConfig.maxTokens ?? ''}
+                          onChange={(e) => updateNodeConfig(selectedNodeMeta.id, 'maxTokens', e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                        />
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Gợi ý: 4096 (ngắn), 8192 - 16384 (reasoning).
+                        </p>
                       </div>
+
                       <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">Temperature</label>
                         <input 
@@ -280,11 +435,14 @@ export default function ConfigsPage() {
                           step="0.1"
                           min="0"
                           max="2"
-                          className="w-full bg-white border border-slate-300 rounded-lg p-3 text-sm text-slate-700 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all shadow-sm"
+                          className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm text-slate-700 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all shadow-sm"
                           placeholder={selectedNodeMeta.defaultConfig?.temperature?.toString() || '0.1'}
                           value={currentNodeConfig.temperature ?? ''}
-                          onChange={(e) => updateNodeConfig(selectedNodeMeta.id, 'temperature', parseFloat(e.target.value))}
+                          onChange={(e) => updateNodeConfig(selectedNodeMeta.id, 'temperature', e.target.value === '' ? undefined : parseFloat(e.target.value))}
                         />
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Khoảng: 0.0 (chính xác) - 1.0 (sáng tạo).
+                        </p>
                       </div>
                     </div>
                   </div>
