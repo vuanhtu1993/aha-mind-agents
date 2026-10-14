@@ -263,4 +263,74 @@ describe('HiveService', () => {
       expect(chunks[chunks.length - 1].isDone).toBe(true);
     });
   });
+
+  describe('Token Bucket Rate Limiting (5 req/s) & Retries', () => {
+    it('should throttle requests to max 5 requests per second', async () => {
+      mockAxiosInstance.post.mockResolvedValue({
+        status: 200,
+        data: {
+          choices: [{ message: { content: 'OK' } }],
+          usage: { total_tokens: 10 },
+        },
+      });
+
+      const startTime = Date.now();
+      // Bắn liên tiếp 6 requests
+      const promises = Array.from({ length: 6 }).map((_, i) =>
+        service.invoke([{ role: 'user', content: `test ${i}` }])
+      );
+
+      await Promise.all(promises);
+      const elapsed = Date.now() - startTime;
+
+      // Với Token Bucket capacity = 5 và refill 1 token mỗi 200ms:
+      // 5 requests đầu bắn burst ngay lập tức, request thứ 6 phải chờ ít nhất ~180ms.
+      expect(elapsed).toBeGreaterThanOrEqual(180);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(6);
+    });
+
+    it('should retry on HTTP 429 and eventually succeed', async () => {
+      mockAxiosInstance.post
+        .mockRejectedValueOnce({
+          response: { status: 429, data: { message: 'Too Many Requests' } },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            choices: [{ message: { content: 'Recovered after rate limit' } }],
+            usage: { total_tokens: 15 },
+          },
+        });
+
+      const res = await service.invoke([{ role: 'user', content: 'test retry' }]);
+      expect(res.text).toBe('Recovered after rate limit');
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+    });
+
+    it('should merge system prompts into a single system message for invokeStructured', async () => {
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { content: '{"status":"ok"}' }, finish_reason: 'stop' }],
+          usage: { total_tokens: 20 },
+        },
+      });
+
+      await service.invokeStructured(
+        z.object({ status: z.string() }),
+        [
+          { role: 'system', content: 'Node custom instructions' },
+          { role: 'user', content: 'Hello' },
+        ],
+        { maxTokens: 4096 }
+      );
+
+      const calledPayload = mockAxiosInstance.post.mock.calls[0][1];
+      const systemMessages = calledPayload.messages.filter((m: any) => m.role === 'system');
+      // Đảm bảo chỉ có duy nhất 1 system message ở đầu mảng messages
+      expect(systemMessages.length).toBe(1);
+      expect(systemMessages[0].content).toContain('Node custom instructions');
+      expect(systemMessages[0].content).toContain('Target JSON Schema');
+    });
+  });
 });

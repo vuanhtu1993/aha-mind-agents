@@ -7,6 +7,7 @@ import {
   HiveCallOptions,
   HiveInvokeResult,
   HiveMessage,
+  HiveRole,
   HiveStructuredResult,
   HiveStreamChunk,
 } from './hive.interface';
@@ -30,6 +31,14 @@ export class HiveService implements OnModuleInit {
   private defaultModel: string;
   private baseUrl: string;
 
+  // Cấu hình Token Bucket chuẩn xác cho Hive API: 5 request/s
+  private readonly bucketCapacity = 5; // Dung lượng chứa tối đa 5 token
+  private readonly refillIntervalMs = 200; // Mỗi 200ms hồi 1 token (1000ms / 5 = 200ms)
+  private availableTokens = 5;
+  private lastRefillTimestamp = Date.now();
+  private readonly rateLimitQueue: (() => void)[] = [];
+  private rateLimitTimer: NodeJS.Timeout | null = null;
+
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit() {
@@ -52,6 +61,91 @@ export class HiveService implements OnModuleInit {
       // Timeout 90 giây vì mô hình reasoning có thể mất vài giây suy luận trước khi emit tokens
       timeout: 90000,
     });
+  }
+
+  onModuleDestroy() {
+    if (this.rateLimitTimer) {
+      clearInterval(this.rateLimitTimer);
+      this.rateLimitTimer = null;
+    }
+  }
+
+  /**
+   * Bơm token vào thùng theo thời gian thực (Token Bucket Refill)
+   */
+  private refillTokens(): void {
+    const now = Date.now();
+    const elapsed = now - this.lastRefillTimestamp;
+    const tokensToAdd = Math.floor(elapsed / this.refillIntervalMs);
+
+    if (tokensToAdd > 0) {
+      this.availableTokens = Math.min(this.bucketCapacity, this.availableTokens + tokensToAdd);
+      this.lastRefillTimestamp = this.lastRefillTimestamp + tokensToAdd * this.refillIntervalMs;
+    }
+  }
+
+  /**
+   * Xin cấp 1 token trước khi gửi request tới Hive API.
+   * Nếu thùng còn token: trừ 1 token và thực thi ngay.
+   * Nếu thùng cạn: xếp hàng vào queue và chờ drainer nạp token xả dần.
+   */
+  private async acquireToken(): Promise<void> {
+    this.refillTokens();
+
+    if (this.availableTokens > 0) {
+      this.availableTokens--;
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      this.rateLimitQueue.push(resolve);
+      this.startQueueDrainer();
+    });
+  }
+
+  private startQueueDrainer(): void {
+    if (this.rateLimitTimer) return;
+
+    this.rateLimitTimer = setInterval(() => {
+      this.refillTokens();
+
+      while (this.availableTokens > 0 && this.rateLimitQueue.length > 0) {
+        this.availableTokens--;
+        const resolve = this.rateLimitQueue.shift();
+        if (resolve) resolve();
+      }
+
+      if (this.rateLimitQueue.length === 0 && this.rateLimitTimer) {
+        clearInterval(this.rateLimitTimer);
+        this.rateLimitTimer = null;
+      }
+    }, 40); // Chu kỳ kiểm tra 40ms để giải phóng token ngay khi refill
+  }
+
+  /**
+   * Thực thi request có kiểm soát Token Bucket và cơ chế Exponential Backoff khi gặp 429
+   */
+  private async executeWithThrottling<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+    let attempt = 0;
+    while (attempt <= maxRetries) {
+      await this.acquireToken();
+      try {
+        return await fn();
+      } catch (error: any) {
+        attempt++;
+        const status = error?.response?.status;
+        if ((status === 429 || status >= 500) && attempt <= maxRetries) {
+          const backoff = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+          this.logger.warn(
+            `⚠️ Hive API trả về HTTP ${status}. Tự động chờ ${Math.round(backoff)}ms để retry (Lần ${attempt}/${maxRetries})...`
+          );
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error('Exceeded maximum retry attempts');
   }
 
   /**
@@ -79,11 +173,13 @@ export class HiveService implements OnModuleInit {
     };
 
     try {
-      const response = await this.client.post('/chat/completions', payload, {
-        headers: {
-          authorization: `Bearer ${this.apiKey}`,
-        },
-      });
+      const response = await this.executeWithThrottling(() =>
+        this.client.post('/chat/completions', payload, {
+          headers: {
+            authorization: `Bearer ${this.apiKey}`,
+          },
+        })
+      );
 
       const choice = response.data?.choices?.[0];
       const message = choice?.message;
@@ -141,14 +237,23 @@ export class HiveService implements OnModuleInit {
       }
     }
 
-    // Bổ sung chỉ thị xuất JSON thuần túy vào system instruction để đảm bảo model không kèm markdown thừa
-    const systemPrompt: HiveMessage = {
-      role: 'system',
-      content:
-        `You are an AI assistant that MUST respond ONLY with a valid JSON object matching the requested schema.${schemaInstruction}\nDo not include markdown code block backticks (\`\`\`json) or introductory explanations. Keep reasoning concise.`,
-    };
+    // Tách riêng system message từ caller nếu có để hợp nhất vào DUY NHẤT 1 system message
+    const callerSystemMsg = rawMessages.find((m) => m.role === 'system');
+    const nonSystemMessages = rawMessages.filter((m) => m.role !== 'system');
 
-    const enhancedMessages = [systemPrompt, ...rawMessages];
+    const combinedSystemContent = [
+      callerSystemMsg ? callerSystemMsg.content : '',
+      `You are an AI assistant that MUST respond ONLY with a valid JSON object matching the requested schema.${schemaInstruction}`,
+      `Do not include markdown code block backticks (\`\`\`json) or introductory explanations.`,
+      `CRITICAL FOR REASONING MODELS: Keep internal reasoning brief and concise. Focus directly on the JSON output.`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const enhancedMessages = [
+      { role: 'system' as HiveRole, content: combinedSystemContent },
+      ...nonSystemMessages,
+    ];
 
     const payload = {
       model,
@@ -160,11 +265,13 @@ export class HiveService implements OnModuleInit {
     };
 
     try {
-      const response = await this.client.post('/chat/completions', payload, {
-        headers: {
-          authorization: `Bearer ${this.apiKey}`,
-        },
-      });
+      const response = await this.executeWithThrottling(() =>
+        this.client.post('/chat/completions', payload, {
+          headers: {
+            authorization: `Bearer ${this.apiKey}`,
+          },
+        })
+      );
 
       const choice = response.data?.choices?.[0];
       const finishReason = choice?.finish_reason;
@@ -173,7 +280,9 @@ export class HiveService implements OnModuleInit {
 
       // 1. Token Limit Guard đối với Reasoning Model
       if (finishReason === 'length' && (!content || content.trim() === '')) {
-        this.logger.error('❌ Mô hình Hive cạn kiệt tokens trước khi kịp sinh content.');
+        this.logger.error(
+          `❌ Mô hình Hive cạn kiệt tokens (Prompt: ${usage.prompt_tokens}, Reasoning: ${usage.completion_tokens_details?.reasoning_tokens || 'N/A'}, MaxTokens: ${maxTokens}).`
+        );
         throw new Error(
           'Hive reasoning model token limit exceeded (finish_reason: length). Please reduce prompt length or chunk size.'
         );
