@@ -22,43 +22,91 @@ export class DashboardService implements OnModuleInit {
     this.logger.log('Đang đồng bộ Metadata của các Plugin xuống AgentConfig...');
     const plugins = this.pluginRegistry['plugins'];
 
-    for (const [agentId, plugin] of plugins.entries()) {
-      const metadata = plugin.metadata;
-
-      // Tạo một object chứa toàn bộ defaultConfig của các nodes
-      const defaultNodeOverrides: Record<string, any> = {};
-
-      if (metadata.pipelines && Array.isArray(metadata.pipelines)) {
-        metadata.pipelines.forEach((pipeline: any) => {
-          if (pipeline.nodes && Array.isArray(pipeline.nodes)) {
-            pipeline.nodes.forEach((node: any) => {
-              if (node.defaultConfig) {
-                defaultNodeOverrides[node.id] = { ...node.defaultConfig };
-              }
-            });
-          }
-        });
+    for (const agentId of plugins.keys()) {
+      try {
+        await this.syncAgentMetadata(agentId);
+      } catch (err: any) {
+        this.logger.warn(`Lỗi đồng bộ metadata cho ${agentId}: ${err.message}`);
       }
-
-      // Upsert vào Database, nhưng CHỈ INSERT ($setOnInsert) nếu document chưa tồn tại, 
-      // để không ghi đè lên các cấu hình mà Admin đã sửa trên Dashboard.
-      await this.configModel.findOneAndUpdate(
-        { agentId },
-        {
-          $setOnInsert: {
-            agentId,
-            defaultModel: 'gemini-3.5-flash',
-            temperature: 0.1,
-            maxRetries: 2,
-            isActive: true,
-            nodeOverrides: defaultNodeOverrides
-          }
-        },
-        { upsert: true }
-      );
     }
 
     this.logger.log('Đồng bộ Metadata hoàn tất.');
+  }
+
+  /**
+   * Đồng bộ cấu hình metadata từ code vào Database cho 1 Agent cụ thể.
+   * Có thể gọi tự động khi khởi động hoặc gọi chủ động qua nút bấm trên Dashboard.
+   */
+  async syncAgentMetadata(agentId: string): Promise<{ syncedCount: number; newNodes: string[] }> {
+    const plugins = this.pluginRegistry['plugins'];
+    const plugin = plugins.get(agentId);
+    if (!plugin) {
+      throw new Error(`Plugin '${agentId}' không tồn tại.`);
+    }
+
+    const metadata = plugin.metadata;
+    const defaultNodeOverrides: Record<string, any> = {};
+
+    if (metadata.pipelines && Array.isArray(metadata.pipelines)) {
+      metadata.pipelines.forEach((pipeline: any) => {
+        if (pipeline.nodes && Array.isArray(pipeline.nodes)) {
+          pipeline.nodes.forEach((node: any) => {
+            if (node.defaultConfig) {
+              defaultNodeOverrides[node.id] = { ...node.defaultConfig };
+            }
+          });
+        }
+      });
+    }
+
+    const newNodes: string[] = [];
+    let syncedCount = 0;
+
+    const existing = await this.configModel.findOne({ agentId });
+    if (!existing) {
+      await this.configModel.create({
+        agentId,
+        defaultModel: 'zai-org/glm-5.3-flash',
+        temperature: 0.1,
+        maxRetries: 2,
+        isActive: true,
+        nodeOverrides: defaultNodeOverrides,
+      });
+      return { syncedCount: Object.keys(defaultNodeOverrides).length, newNodes: Object.keys(defaultNodeOverrides) };
+    }
+
+    const currentOverrides = existing.nodeOverrides || {};
+    let hasChanges = false;
+
+    for (const [nodeId, defConfig] of Object.entries(defaultNodeOverrides)) {
+      if (!currentOverrides[nodeId]) {
+        currentOverrides[nodeId] = { ...defConfig };
+        newNodes.push(nodeId);
+        hasChanges = true;
+        syncedCount++;
+      } else {
+        // Merge các thuộc tính còn thiếu (ví dụ maxTokens) mà admin chưa cấu hình
+        const targetNode = currentOverrides[nodeId] as Record<string, any>;
+        for (const [key, val] of Object.entries(defConfig as Record<string, any>)) {
+          if (targetNode[key] === undefined) {
+            targetNode[key] = val;
+            hasChanges = true;
+            syncedCount++;
+          }
+        }
+      }
+    }
+
+    if (hasChanges) {
+      existing.nodeOverrides = currentOverrides;
+      if (typeof existing.markModified === 'function') {
+        existing.markModified('nodeOverrides');
+      }
+      await existing.save();
+      this.logger.log(`✅ [Reconcile] Đã đồng bộ ${syncedCount} thuộc tính / node mới cho agentId: ${agentId}`);
+    }
+
+    return { syncedCount, newNodes };
   }
 
   async getMetrics() {

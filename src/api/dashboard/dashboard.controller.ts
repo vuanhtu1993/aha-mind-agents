@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Param, Body, Query, Sse, MessageEvent } from '@nestjs/common';
+import { Controller, Get, Put, Post, Param, Body, Query, Sse, MessageEvent } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { RedisPubSubService } from '../../core/services/redis-pubsub.service';
@@ -73,5 +73,12 @@ export class DashboardController {
     @Body() body: Partial<AgentConfig>
   ) {
     return this.dashboardService.updateAgentConfig(agentId, body);
+  }
+
+  @Post('configs/:agentId/sync')
+  @ApiOperation({ summary: 'Đồng bộ cấu hình từ Plugin Metadata vào CSDL', description: 'Quét các node mới từ code và điền defaultConfig vào DB mà không ghi đè custom config của admin' })
+  @ApiParam({ name: 'agentId', example: 'story-shadowing' })
+  async syncAgentConfig(@Param('agentId') agentId: string) {
+    return this.dashboardService.syncAgentMetadata(agentId);
   }
 }
