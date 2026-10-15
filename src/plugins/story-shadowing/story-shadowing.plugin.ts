@@ -93,7 +93,8 @@ export class StoryShadowingPlugin implements AgentPlugin {
             defaultConfig: {
               systemPrompt: `You are an expert English language assessor.\nEvaluate the overall language difficulty level of the provided English transcript text.\nCriteria:\n- easy: A1-A2, short simple sentences, high-frequency everyday vocabulary.\n- medium: B1-B2, conversational, common phrasal verbs, standard structures.\n- hard: C1-C2, specialized terms, idiomatic nuances, complex sentence structures.\n\nOutput JSON: { "level": "easy" | "medium" | "hard" }`,
               temperature: 0.1,
-              maxTokens: 500
+              maxTokens: 500,
+              model: "deepseek-ai/deepseek-v4.1-flash"
             }
           },
           {
@@ -104,7 +105,8 @@ export class StoryShadowingPlugin implements AgentPlugin {
             defaultConfig: {
               systemPrompt: `You are a professional lexicographer and curriculum designer for English learners. Your task is to identify and extract difficult vocabulary, idioms, and phrasal verbs from the provided English text.`,
               temperature: 0.1,
-              maxTokens: 16384
+              maxTokens: 16384,
+              model: "zai-org/glm-5.3-flash"
             }
           },
           {
@@ -115,7 +117,8 @@ export class StoryShadowingPlugin implements AgentPlugin {
             defaultConfig: {
               systemPrompt: `You are an English teacher explaining vocabulary to a B1-B2 learner.\nFor EACH item, provide a clear, simple explanation (in Vietnamese if helpful, or simple English) of what this item means EXACTLY IN THIS CONTEXT.`,
               temperature: 0.1,
-              maxTokens: 16384
+              maxTokens: 16384,
+              model: "zai-org/glm-5.3-flash"
             }
           }
         ],
@@ -133,7 +136,7 @@ export class StoryShadowingPlugin implements AgentPlugin {
     private readonly youtubePipeline: YoutubePipelineService,
     @InjectModel(Storybook.name, AHA_TOOLS_CONNECTION)
     private readonly storybookModel: Model<Storybook>,
-  ) {}
+  ) { }
 
   public async validateInput(pipeline: string, input: any): Promise<any> {
     if (pipeline === 'text') {
@@ -203,7 +206,7 @@ export class StoryShadowingPlugin implements AgentPlugin {
 
   private prepareAndSaveToDatabase(pipeline: string, input: any, finalState: any, context: ExecutionContext): string {
     context.log('Đang lưu bài học vào CSDL Storybooks...');
-    
+
     // Tạo originalText cho youtube nếu không có rawText
     let originalText = finalState.rawText;
     if (!originalText && finalState.sentences) {
@@ -225,7 +228,7 @@ export class StoryShadowingPlugin implements AgentPlugin {
       speakingRate: finalState.speakingRate || 1.0,
       sourceType: pipeline,
     });
-    
+
     const storyId = newStory._id.toString();
     newStory.save()
       .then(saved => context.log(`✅ Đã lưu bài học thành công. ID: ${saved._id}`))

@@ -39,7 +39,7 @@ export class HiveService implements OnModuleInit {
   private readonly rateLimitQueue: (() => void)[] = [];
   private rateLimitTimer: NodeJS.Timeout | null = null;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   onModuleInit() {
     this.apiKey = this.configService.get<string>('HIVE_API_KEY', process.env.HIVE_API_KEY || '');
@@ -312,7 +312,7 @@ export class HiveService implements OnModuleInit {
             try {
               validatedData = schema.parse({ items: parsedJson });
               healed = true;
-            } catch {}
+            } catch { }
           }
 
           // Biến thể B: LLM trả về { data: [...] } hoặc { keywords: [...] } thay vì { items: [...] }
@@ -322,7 +322,7 @@ export class HiveService implements OnModuleInit {
               try {
                 validatedData = schema.parse({ items: parsedJson[arrayKey] });
                 healed = true;
-              } catch {}
+              } catch { }
             }
           }
 
@@ -331,7 +331,7 @@ export class HiveService implements OnModuleInit {
             try {
               validatedData = schema.parse({ items: [parsedJson] });
               healed = true;
-            } catch {}
+            } catch { }
           }
 
           if (!healed) {
