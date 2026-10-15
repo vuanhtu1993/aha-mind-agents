@@ -88,12 +88,12 @@ export class StoryShadowingPlugin implements AgentPlugin {
           {
             id: 'youtubeConsolidator',
             type: 'llm',
-            displayName: 'Xử lý gộp câu & Phiên âm IPA',
+            displayName: 'Gộp câu tất định & Đánh giá trình độ',
             configurableOptions: ['systemPrompt', 'model', 'temperature', 'maxTokens'],
             defaultConfig: {
-              systemPrompt: `You are an expert linguist and audio synchronizer.\nYour task is to take a list of raw subtitle fragments from YouTube and consolidate them into complete, grammatically correct, natural-sounding sentences.`,
+              systemPrompt: `You are an expert English language assessor.\nEvaluate the overall language difficulty level of the provided English transcript text.\nCriteria:\n- easy: A1-A2, short simple sentences, high-frequency everyday vocabulary.\n- medium: B1-B2, conversational, common phrasal verbs, standard structures.\n- hard: C1-C2, specialized terms, idiomatic nuances, complex sentence structures.\n\nOutput JSON: { "level": "easy" | "medium" | "hard" }`,
               temperature: 0.1,
-              maxTokens: 16384
+              maxTokens: 500
             }
           },
           {

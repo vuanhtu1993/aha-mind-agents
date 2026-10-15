@@ -58,4 +58,46 @@ describe('YoutubeSentenceConsolidatorNode', () => {
     expect(result.rawSentences).toHaveLength(1);
     expect(result.rawSentences?.[0].text).toBe('Testing fallback sentence.');
   });
+
+  it('should respect custom nodeOverrides for model, temperature, maxTokens, and systemPrompt', async () => {
+    (mockHiveService.invokeStructured as jest.Mock).mockResolvedValueOnce({
+      parsed: { level: 'hard' },
+      usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+    });
+
+    const state: any = {
+      youtubeTranscript: [
+        { text: 'Custom prompt test sentence.', offset: 0, duration: 2000 },
+      ],
+      config: {
+        defaultModel: 'global-model',
+        nodeOverrides: {
+          youtubeConsolidator: {
+            model: 'deepseek-v4.1-flash',
+            temperature: 0.2,
+            maxTokens: 300,
+            systemPrompt: 'Custom Level Assessor Prompt',
+          },
+        },
+      },
+    };
+
+    const result = await node.invoke(state);
+
+    expect(result.level).toBe('hard');
+    expect(mockHiveService.invokeStructured).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'system',
+          content: 'Custom Level Assessor Prompt',
+        }),
+      ]),
+      expect.objectContaining({
+        model: 'deepseek-v4.1-flash',
+        temperature: 0.2,
+        maxTokens: 300,
+      }),
+    );
+  });
 });

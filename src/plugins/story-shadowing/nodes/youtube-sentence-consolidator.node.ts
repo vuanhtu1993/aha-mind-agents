@@ -63,8 +63,10 @@ export class YoutubeSentenceConsolidatorNode {
 
       try {
         const nodeConfig = state.config?.nodeOverrides?.['youtubeConsolidator'] || {};
+        const prompt = nodeConfig.systemPrompt || CLASSIFICATION_PROMPT;
         const model = nodeConfig.model || state.config?.defaultModel;
         const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
+        const maxTokens = nodeConfig.maxTokens ?? 500;
 
         // Lấy mẫu khoảng 10-15 câu đầu để đánh giá trình độ
         const sampleText = allSentences.slice(0, 15).map(s => s.text).join(' ');
@@ -72,13 +74,13 @@ export class YoutubeSentenceConsolidatorNode {
         const levelRes = await this.hive.invokeStructured(
           DifficultyClassificationSchema,
           [
-            { role: 'system', content: CLASSIFICATION_PROMPT },
+            { role: 'system', content: prompt },
             { role: 'user', content: `Analyze the English proficiency level of this sample text:\n\n${sampleText}` }
           ],
           {
             temperature: temp,
             model: model,
-            maxTokens: 500,
+            maxTokens: maxTokens,
             name: 'youtube_level_classifier'
           }
         );
