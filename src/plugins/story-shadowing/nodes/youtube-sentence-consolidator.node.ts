@@ -1,6 +1,6 @@
 /**
  * @file youtube-sentence-consolidator.node.ts
- * @description Node gộp phụ đề YouTube và căn chỉnh thời gian, phiên âm IPA sử dụng Hive AI
+ * @description Node gộp phụ đề YouTube tất định và phiên âm IPA
  *
  * Made by Anh Tu - Share to be share
  */
@@ -8,40 +8,22 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HiveService } from 'src/core/hive/hive.service';
 import { PhoneticService } from 'src/core/phonetics/phonetic.service';
-import { YoutubeConsolidatedSchema } from '../story-shadowing.schema';
 import { StoryShadowingStateType } from '../story-shadowing.state';
+import { SubtitleAlignerUtil } from '../utils/subtitle-aligner.util';
+import { z } from 'zod';
 
-const SYSTEM_PROMPT = `You are an expert linguist and audio synchronizer.
-The user will provide a raw transcript array from a YouTube video where each item is a caption block with 'text', 'start' (in ms) and 'duration' (in ms).
-These blocks are often broken mid-sentence.
+const DifficultyClassificationSchema = z.object({
+  level: z.enum(['easy', 'medium', 'hard']),
+});
 
-Your task:
-1. Merge the blocks into complete, grammatically correct English sentences.
-2. For each merged sentence, calculate:
-   - startMs: the 'start' value of the VERY FIRST block in that sentence.
-   - endMs: the ('start' + 'duration') value of the VERY LAST block in that sentence.
-3. Classify the overall language difficulty of the text into "easy", "medium", or "hard".
-   - easy: A1-A2, short sentences, basic vocabulary.
-   - medium: B1-B2, some idioms, complex sentences.
-   - hard: C1+, technical jargon, advanced grammar.
+const CLASSIFICATION_PROMPT = `You are an expert English language assessor.
+Evaluate the overall language difficulty level of the provided English transcript text.
+Criteria:
+- easy: A1-A2, short simple sentences, high-frequency everyday vocabulary.
+- medium: B1-B2, conversational, common phrasal verbs, standard structures.
+- hard: C1-C2, specialized terms, idiomatic nuances, complex sentence structures.
 
-Output EXACTLY a JSON matching this schema:
-{
-  "level": "medium",
-  "sentences": [
-    {
-      "id": 0,
-      "text": "This is a merged sentence.",
-      "startMs": 0,
-      "endMs": 4000
-    }
-  ]
-}
-
-CRITICAL RULES:
-1. Do NOT paraphrase the text. Keep the exact original words, just fix the punctuation and capitalization to form proper sentences.
-2. Do NOT lose any audio gap, endMs MUST be the exact end time of the last block forming the sentence.
-3. Keep reasoning brief and concise. Focus directly on sentence merging and time boundary calculation.`;
+Output JSON: { "level": "easy" | "medium" | "hard" }`;
 
 @Injectable()
 export class YoutubeSentenceConsolidatorNode {
@@ -55,134 +37,73 @@ export class YoutubeSentenceConsolidatorNode {
   public async invoke(state: StoryShadowingStateType): Promise<Partial<StoryShadowingStateType>> {
     if (state.error || !state.youtubeTranscript) return {};
 
-    this.logger.log('Đang gộp phụ đề và căn chỉnh thời gian bằng AI...');
+    this.logger.log('Đang gộp phụ đề và căn chỉnh thời gian bằng thuật toán tất định (Deterministic)...');
 
     try {
       await this.phonetics.ensureInitialized();
       const MAX_BLOCKS = 400;
-      const CHUNK_SIZE = 25; // Tối ưu cho reasoning model: ~200 từ/chunk tránh cạn kiệt token
       const transcriptToProcess = state.youtubeTranscript.slice(0, MAX_BLOCKS);
 
-      const chunkPromises = [];
-      const chunkOffsets: number[] = [];
+      // 1. Gộp câu và căn chỉnh thời gian chuẩn xác bằng thuật toán (0ms, 0 Token)
+      const alignedSentences = SubtitleAlignerUtil.align(transcriptToProcess);
 
-      const nodeConfig = state.config?.nodeOverrides?.['youtubeConsolidator'] || {};
-      const prompt = nodeConfig.systemPrompt || SYSTEM_PROMPT;
-      const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
-      const model = nodeConfig.model || state.config?.defaultModel;
-      const maxTokens = nodeConfig.maxTokens ?? 16384;
-
-      for (let i = 0; i < transcriptToProcess.length; i += CHUNK_SIZE) {
-        const chunk = transcriptToProcess.slice(i, i + CHUNK_SIZE);
-        const timeOffset = chunk[0].offset;
-        chunkOffsets.push(timeOffset);
-
-        const shiftedChunk = chunk.map(c => ({
-          ...c,
-          start: c.offset - timeOffset, // Map offset to start for the prompt
-        }));
-
-        const inputText = JSON.stringify(shiftedChunk);
-
-        chunkPromises.push(
-          this.hive.invokeStructured(
-            YoutubeConsolidatedSchema,
-            [
-              { role: 'system', content: prompt },
-              { role: 'user', content: inputText },
-            ],
-            {
-              temperature: temp,
-              model: model,
-              maxTokens: maxTokens,
-              name: 'youtube_sentence_consolidator',
-            }
-          )
-        );
+      if (alignedSentences.length === 0) {
+        return { error: 'Không thể tách câu từ phụ đề YouTube này.' };
       }
 
-      const chunkResults = await Promise.all(chunkPromises);
+      // 2. Phiên âm IPA cho từng từ
+      const allSentences = alignedSentences.map(s => ({
+        ...s,
+        words: this.phonetics.transcribeSentence(s.text),
+      }));
 
-      let allSentences: any[] = [];
-      let overallLevel = chunkResults[0]?.parsed?.level || 'medium';
-
+      // 3. Phân loại độ khó (Gọi nhẹ nhàng LLM 1 lần duy nhất với mẫu text ngắn)
+      let overallLevel: 'easy' | 'medium' | 'hard' = 'medium';
       let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
-      let currentId = 0;
-      for (let i = 0; i < chunkResults.length; i++) {
-        const parsed = chunkResults[i].parsed;
-        const usage = chunkResults[i].usage;
+      try {
+        const nodeConfig = state.config?.nodeOverrides?.['youtubeConsolidator'] || {};
+        const model = nodeConfig.model || state.config?.defaultModel;
+        const temp = nodeConfig.temperature ?? state.config?.temperature ?? 0.1;
 
-        totalUsage.promptTokens += usage.promptTokens;
-        totalUsage.completionTokens += usage.completionTokens;
-        totalUsage.totalTokens += usage.totalTokens;
+        // Lấy mẫu khoảng 10-15 câu đầu để đánh giá trình độ
+        const sampleText = allSentences.slice(0, 15).map(s => s.text).join(' ');
 
-        const offset = chunkOffsets[i];
-        for (const s of parsed.sentences) {
-          s.id = currentId++;
-          s.startMs += offset;
-          s.endMs += offset;
-          if (!s.words || s.words.length === 0) {
-            s.words = this.phonetics.transcribeSentence(s.text);
+        const levelRes = await this.hive.invokeStructured(
+          DifficultyClassificationSchema,
+          [
+            { role: 'system', content: CLASSIFICATION_PROMPT },
+            { role: 'user', content: `Analyze the English proficiency level of this sample text:\n\n${sampleText}` }
+          ],
+          {
+            temperature: temp,
+            model: model,
+            maxTokens: 500,
+            name: 'youtube_level_classifier'
           }
-          allSentences.push(s);
+        );
+
+        if (levelRes?.parsed?.level) {
+          overallLevel = levelRes.parsed.level;
         }
+        if (levelRes?.usage) {
+          totalUsage = levelRes.usage;
+        }
+      } catch (aiErr: any) {
+        this.logger.warn(`⚠️ Không thể phân loại độ khó bằng AI (${aiErr.message}), mặc định: 'medium'`);
       }
 
-      // Xử lý nội suy thời gian
-      let i = 0;
-      while (i < allSentences.length) {
-        let j = i;
-        while (j < allSentences.length && allSentences[j].startMs === allSentences[i].startMs && allSentences[j].endMs === allSentences[i].endMs) {
-          j++;
-        }
-        const count = j - i;
-        if (count > 1) {
-          const totalDuration = allSentences[i].endMs - allSentences[i].startMs;
-          let totalChars = 0;
-          for (let k = i; k < j; k++) {
-            totalChars += allSentences[k].text.length;
-          }
-
-          let currentStart = allSentences[i].startMs;
-          for (let k = i; k < j; k++) {
-            const ratio = allSentences[k].text.length / (totalChars || 1);
-            const duration = totalDuration * ratio;
-            allSentences[k].startMs = Math.floor(currentStart);
-            allSentences[k].endMs = Math.floor(currentStart + duration);
-            currentStart += duration;
-          }
-        }
-        i = j;
-      }
-
-      // Fix Overlap
-      for (let i = 0; i < allSentences.length - 1; i++) {
-        const current = allSentences[i];
-        const next = allSentences[i + 1];
-
-        if (current.endMs > next.startMs) {
-          if (next.startMs > current.startMs) {
-            const mid = Math.floor((current.endMs + next.startMs) / 2);
-            current.endMs = mid;
-            next.startMs = mid;
-          } else {
-            next.startMs = current.endMs;
-          }
-        }
-      }
-
-      this.logger.log(`✅ Đã gộp thành công ${allSentences.length} câu hoàn chỉnh.`);
+      this.logger.log(`✅ Đã gộp thành công ${allSentences.length} câu hoàn chỉnh với độ chính xác thời gian tuyệt đối.`);
 
       return {
         rawSentences: allSentences,
-        level: overallLevel as 'easy' | 'medium' | 'hard',
-        sentences: allSentences.map(s => ({ ...s, audioBase64: '' })), // Youtube không chạy qua TTS
+        level: overallLevel,
+        sentences: allSentences.map(s => ({ ...s, audioBase64: '' })),
         tokenUsage: totalUsage,
       };
     } catch (err: any) {
       this.logger.error(`❌ Lỗi Youtube Consolidator: ${err.message}`);
-      return { error: 'Không thể xử lý ngôn ngữ phụ đề. Vui lòng thử video khác ngắn hơn.' };
+      return { error: 'Không thể xử lý ngôn ngữ phụ đề. Vui lòng thử video khác.' };
     }
   }
 }
