@@ -55,7 +55,7 @@ src/plugins/fun-feed/
 - Create: `src/plugins/fun-feed/schemas/user-interaction.schema.ts`
 - Test: `src/plugins/fun-feed/schemas/schemas.spec.ts`
 
-- [ ] **Step 1: Write the failing test for schemas**
+- [x] **Step 1: Write the failing test for schemas**
 
 ```typescript
 // src/plugins/fun-feed/schemas/schemas.spec.ts
@@ -108,12 +108,12 @@ describe('Fun Feed Schemas & Config', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx jest src/plugins/fun-feed/schemas/schemas.spec.ts`
 Expected: FAIL with "Cannot find module '../config/keywords.config'"
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `src/plugins/fun-feed/config/keywords.config.ts`:
 ```typescript
@@ -248,12 +248,12 @@ export const UserInteractionSchema = SchemaFactory.createForClass(UserInteractio
 UserInteractionSchema.index({ userId: 1, contentId: 1, action: 1 });
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx jest src/plugins/fun-feed/schemas/schemas.spec.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/plugins/fun-feed/config/ src/plugins/fun-feed/schemas/
@@ -271,7 +271,7 @@ git commit -m "feat(fun-feed): add keywords config and mongoose schemas"
 - Create: `src/plugins/fun-feed/adapters/youtube.adapter.ts`
 - Create: `src/plugins/fun-feed/adapters/youtube.adapter.spec.ts`
 
-- [ ] **Step 1: Write the failing tests for GIPHY & YouTube Adapters**
+- [x] **Step 1: Write the failing tests for GIPHY & YouTube Adapters**
 
 Create `src/plugins/fun-feed/adapters/giphy.adapter.spec.ts`:
 ```typescript
@@ -382,12 +382,12 @@ describe('YoutubeAdapter', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `npx jest src/plugins/fun-feed/adapters/`
 Expected: FAIL with "Cannot find module './giphy.adapter'"
 
-- [ ] **Step 3: Write minimal implementation for adapters**
+- [x] **Step 3: Write minimal implementation for adapters**
 
 Create `src/plugins/fun-feed/adapters/source-adapter.interface.ts`:
 ```typescript
@@ -515,12 +515,12 @@ export class YoutubeAdapter implements SourceAdapter {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `npx jest src/plugins/fun-feed/adapters/`
 Expected: PASS with 4 tests passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/plugins/fun-feed/adapters/
@@ -535,7 +535,7 @@ git commit -m "feat(fun-feed): implement GIPHY and YouTube source adapters"
 - Create: `src/plugins/fun-feed/services/fun-feed-ingestion.service.ts`
 - Test: `src/plugins/fun-feed/services/fun-feed-ingestion.service.spec.ts`
 
-- [ ] **Step 1: Write the failing test for Ingestion Service**
+- [x] **Step 1: Write the failing test for Ingestion Service**
 
 ```typescript
 // src/plugins/fun-feed/services/fun-feed-ingestion.service.spec.ts
@@ -634,12 +634,12 @@ describe('FunFeedIngestionService', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx jest src/plugins/fun-feed/services/fun-feed-ingestion.service.spec.ts`
 Expected: FAIL with "Cannot find module './fun-feed-ingestion.service'"
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `src/plugins/fun-feed/services/fun-feed-ingestion.service.ts`:
 ```typescript
@@ -743,12 +743,12 @@ Hãy đánh giá xem nội dung có lành mạnh không (isSafe: true/false), gi
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx jest src/plugins/fun-feed/services/fun-feed-ingestion.service.spec.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/plugins/fun-feed/services/fun-feed-ingestion.service.*
@@ -764,7 +764,7 @@ git commit -m "feat(fun-feed): implement ingestion service with dedup and LLM en
 - Create: `src/plugins/fun-feed/controllers/fun-feed-cron.controller.spec.ts`
 - Modify: `vercel.json:1-38`
 
-- [ ] **Step 1: Write the failing test for Cron Controller**
+- [x] **Step 1: Write the failing test for Cron Controller**
 
 ```typescript
 // src/plugins/fun-feed/controllers/fun-feed-cron.controller.spec.ts
@@ -804,12 +804,12 @@ describe('FunFeedCronController', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx jest src/plugins/fun-feed/controllers/fun-feed-cron.controller.spec.ts`
 Expected: FAIL with "Cannot find module './fun-feed-cron.controller'"
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `src/plugins/fun-feed/controllers/fun-feed-cron.controller.ts`:
 ```typescript
@@ -906,12 +906,12 @@ Update `vercel.json` to register the cron:
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx jest src/plugins/fun-feed/controllers/fun-feed-cron.controller.spec.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/plugins/fun-feed/controllers/fun-feed-cron.controller.* vercel.json
@@ -930,7 +930,7 @@ git commit -m "feat(fun-feed): add cron endpoint and register vercel cron schedu
 - Create: `src/plugins/fun-feed/controllers/fun-feed.controller.ts`
 - Create: `src/plugins/fun-feed/controllers/fun-feed.controller.spec.ts`
 
-- [ ] **Step 1: Write the failing tests for Feed Service & Controller**
+- [x] **Step 1: Write the failing tests for Feed Service & Controller**
 
 Create `src/plugins/fun-feed/services/fun-feed.service.spec.ts`:
 ```typescript
@@ -1010,12 +1010,12 @@ describe('FunFeedController', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `npx jest src/plugins/fun-feed/services/fun-feed.service.spec.ts src/plugins/fun-feed/controllers/fun-feed.controller.spec.ts`
 Expected: FAIL with "Cannot find module"
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `src/plugins/fun-feed/dto/feed-query.dto.ts`:
 ```typescript
@@ -1163,12 +1163,12 @@ export class FunFeedController {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `npx jest src/plugins/fun-feed/services/fun-feed.service.spec.ts src/plugins/fun-feed/controllers/fun-feed.controller.spec.ts`
 Expected: PASS with all tests passing
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/plugins/fun-feed/dto/ src/plugins/fun-feed/services/fun-feed.service.* src/plugins/fun-feed/controllers/fun-feed.controller.*
@@ -1185,7 +1185,7 @@ git commit -m "feat(fun-feed): implement feed serving service and controller wit
 - Create: `src/plugins/fun-feed/fun-feed.module.ts`
 - Modify: `src/app.module.ts:1-47`
 
-- [ ] **Step 1: Write failing tests for Tool & Module**
+- [x] **Step 1: Write failing tests for Tool & Module**
 
 Create `src/plugins/fun-feed/tools/get-funny-english.tool.spec.ts`:
 ```typescript
@@ -1220,12 +1220,12 @@ describe('getFunnyEnglish Tool', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx jest src/plugins/fun-feed/tools/get-funny-english.tool.spec.ts`
 Expected: FAIL with "Cannot find module"
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `src/plugins/fun-feed/tools/get-funny-english.tool.ts`:
 ```typescript
@@ -1351,17 +1351,17 @@ import { FunFeedModule } from './plugins/fun-feed/fun-feed.module';
 export class AppModule {}
 ```
 
-- [ ] **Step 4: Run all unit tests for the plugin**
+- [x] **Step 4: Run all unit tests for the plugin**
 
 Run: `npx jest src/plugins/fun-feed/`
 Expected: PASS (all suites passing)
 
-- [ ] **Step 5: Run full project typecheck**
+- [x] **Step 5: Run full project typecheck**
 
 Run: `pnpm typecheck`
 Expected: 0 errors
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/plugins/fun-feed/tools/ src/plugins/fun-feed/fun-feed.module.ts src/app.module.ts
