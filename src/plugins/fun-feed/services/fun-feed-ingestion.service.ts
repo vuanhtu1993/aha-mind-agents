@@ -92,12 +92,20 @@ Chủ đề gợi ý: ${fallbackTopic}
 
 Hãy đánh giá xem nội dung có lành mạnh không (isSafe: true/false), giải thích ngắn gọn tại sao hài hước (whyFunny) và người học rút ra được bài học gì (youLearned).`;
 
-    const res = await this.aiService.invokeStructured({
-      prompt,
-      schema: LlmEnrichmentSchema,
-      systemPrompt:
-        'Bạn là chuyên gia ngôn ngữ học và meme văn hóa Anh-Mỹ giúp người học tiếng Anh giải trí và tiến bộ.',
-    });
+    const res = await this.aiService.invokeStructured(
+      LlmEnrichmentSchema,
+      [
+        {
+          role: 'system',
+          content:
+            'Bạn là chuyên gia ngôn ngữ học và meme văn hóa Anh-Mỹ giúp người học tiếng Anh giải trí và tiến bộ.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    );
 
     return res.parsed;
   }

@@ -430,9 +430,12 @@ export class HiveService implements OnModuleInit {
   }
 
   private normalizeMessages(messages: any[]): HiveMessage[] {
+    if (!Array.isArray(messages)) {
+      return [];
+    }
     return messages.map((m) => ({
-      role: m.role || 'user',
-      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+      role: m?.role || 'user',
+      content: typeof m?.content === 'string' ? m.content : JSON.stringify(m?.content),
     }));
   }
 }
