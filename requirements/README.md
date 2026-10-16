@@ -24,6 +24,7 @@ graph TD
         M --> M3["vocab-review/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
         M --> M4["agent-orchestrator/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
         M --> M5["dashboard-observability/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
+        M --> M6["fun-feed/ (PO: spec | Dev: api-contract | QA: acceptance-criteria)"]
         
         Gov["3. governance/ (Quản Trị Chất Lượng & Kiến Trúc)"] --> Gov1["traceability-matrix.md (Ma trận RTM Hai Chiều)"]
         Gov --> Gov2["nfr.md (10 Chỉ số Yêu cầu Phi Chức Năng)"]
@@ -79,6 +80,10 @@ graph TD
   * 📋 [`spec.md`](modules/dashboard-observability/spec.md) — Đặc tả hệ thống giám sát thời gian thực và quản trị tham số động.
   * 🔌 [`api-contract.md`](modules/dashboard-observability/api-contract.md) — Hợp đồng SSE Fan-out, thống kê metrics và quản lý cấu hình.
   * ✅ [`acceptance-criteria.md`](modules/dashboard-observability/acceptance-criteria.md) — Tiêu chí nghiệm thu bảng điều khiển và cập nhật Prompt không restart server.
+* 🧩 **Fun Feed Module (`modules/fun-feed/`):**
+  * 📋 [`spec.md`](modules/fun-feed/spec.md) — Đặc tả bảng tin giải trí học tiếng Anh dạng dọc kiểu TikTok, học qua meme & short video.
+  * 🔌 [`api-contract.md`](modules/fun-feed/api-contract.md) — Hợp đồng HTTP REST (Cursor Pagination, Tương tác like/report, Vercel Cron Ingest).
+  * ✅ [`acceptance-criteria.md`](modules/fun-feed/acceptance-criteria.md) — Tiêu chí nghiệm thu phân trang con trỏ, tự ẩn nội dung khi $\ge 3$ reports và Vercel Cron Auth.
 
 ### 3.3 Tầng Quản Trị Chất Lượng & Kiến Trúc (`governance/`)
 * 📊 [`nfr.md`](governance/nfr.md) — 10 tiêu chuẩn yêu cầu phi chức năng (Performance, Quota Defense, Longevity, Isolation).
