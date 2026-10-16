@@ -22,6 +22,12 @@
       "use": "@vercel/static"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/funny-feed/cron-ingest",
+      "schedule": "0 */6 * * *"
+    }
+  ],
   "routes": [
     {
       "src": "/api/(.*)",
