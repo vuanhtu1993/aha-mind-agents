@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Logger } from '@nestjs/common';
-import { NormalizedMedia, SourceAdapter } from './source-adapter.interface';
+import { NormalizedMedia, SourceAdapter, SourceReport } from './source-adapter.interface';
 
 export class GiphyAdapter implements SourceAdapter {
   readonly source = 'giphy';
@@ -8,13 +8,22 @@ export class GiphyAdapter implements SourceAdapter {
 
   constructor(private readonly apiKey: string) {}
 
-  async fetch(keyword: string, limit = 5): Promise<NormalizedMedia[]> {
+  async fetchWithReport(keyword: string, limit = 5): Promise<{ items: NormalizedMedia[]; report: SourceReport }> {
     if (!this.apiKey) {
       this.logger.warn('GIPHY_API_KEY chưa được cấu hình. Bỏ qua fetch GIPHY.');
-      return [];
+      return {
+        items: [],
+        report: {
+          source: 'giphy',
+          status: 'missing_key',
+          count: 0,
+          message: 'GIPHY_API_KEY chưa được thiết lập trong biến môi trường.',
+        },
+      };
     }
 
     try {
+      // 1. Tìm kiếm ưu tiên rating 'g' (an toàn tuyệt đối)
       const response = await axios.get('https://api.giphy.com/v1/gifs/search', {
         params: {
           api_key: this.apiKey,
@@ -23,11 +32,27 @@ export class GiphyAdapter implements SourceAdapter {
           rating: 'g',
           lang: 'en',
         },
-        timeout: 5000,
+        timeout: 8000,
       });
 
-      const items = response.data?.data || [];
-      return items
+      let rawData = response.data?.data || [];
+
+      // 2. Fallback sang rating 'pg' nếu rating 'g' không có kết quả (vẫn đảm bảo qua LLM Safety filter)
+      if (rawData.length === 0) {
+        const fallbackResponse = await axios.get('https://api.giphy.com/v1/gifs/search', {
+          params: {
+            api_key: this.apiKey,
+            q: keyword,
+            limit,
+            rating: 'pg',
+            lang: 'en',
+          },
+          timeout: 8000,
+        });
+        rawData = fallbackResponse.data?.data || [];
+      }
+
+      const items = rawData
         .map((item: any): NormalizedMedia => ({
           source: 'giphy',
           sourceId: item.id,
@@ -40,9 +65,33 @@ export class GiphyAdapter implements SourceAdapter {
           rating: item.rating || 'g',
         }))
         .filter((m: NormalizedMedia) => !!m.mediaUrl);
+
+      return {
+        items,
+        report: {
+          source: 'giphy',
+          status: 'ok',
+          count: items.length,
+        },
+      };
     } catch (error: any) {
-      this.logger.error(`Lỗi khi gọi GIPHY API [${keyword}]: ${error.message}`);
-      return [];
+      const errorMsg = error.response?.data?.message || error.message;
+      this.logger.error(`Lỗi khi gọi GIPHY API [${keyword}]: ${errorMsg}`);
+      return {
+        items: [],
+        report: {
+          source: 'giphy',
+          status: 'error',
+          count: 0,
+          message: errorMsg,
+        },
+      };
     }
   }
+
+  async fetch(keyword: string, limit = 5): Promise<NormalizedMedia[]> {
+    const res = await this.fetchWithReport(keyword, limit);
+    return res.items;
+  }
 }
+

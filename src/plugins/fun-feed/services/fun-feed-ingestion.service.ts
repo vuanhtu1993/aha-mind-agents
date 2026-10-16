@@ -30,18 +30,40 @@ export class FunFeedIngestionService {
   async ingestSingleKeyword(
     keywordItem: KeywordItem,
     limit = 5,
-  ): Promise<{ fetched: number; deduped: number; saved: number }> {
+  ): Promise<{
+    fetched: number;
+    deduped: number;
+    saved: number;
+    diagnostics?: {
+      giphy?: { status: string; count: number; message?: string };
+      youtube?: { status: string; count: number; message?: string };
+    };
+  }> {
     const fetchedItems: NormalizedMedia[] = [];
+    const diagnostics: Record<string, { status: string; count: number; message?: string }> = {};
 
     if (keywordItem.source === 'giphy' || keywordItem.source === 'all') {
-      const gifs = await this.giphyAdapter.fetch(keywordItem.keyword, limit);
-      fetchedItems.push(...gifs);
+      if (typeof (this.giphyAdapter as any).fetchWithReport === 'function') {
+        const { items, report } = await (this.giphyAdapter as any).fetchWithReport(keywordItem.keyword, limit);
+        fetchedItems.push(...items);
+        diagnostics.giphy = { status: report.status, count: report.count, message: report.message };
+      } else {
+        const gifs = await this.giphyAdapter.fetch(keywordItem.keyword, limit);
+        fetchedItems.push(...gifs);
+      }
     }
 
     if (keywordItem.source === 'youtube' || keywordItem.source === 'all') {
-      const vids = await this.youtubeAdapter.fetch(keywordItem.keyword, limit);
-      fetchedItems.push(...vids);
+      if (typeof (this.youtubeAdapter as any).fetchWithReport === 'function') {
+        const { items, report } = await (this.youtubeAdapter as any).fetchWithReport(keywordItem.keyword, limit);
+        fetchedItems.push(...items);
+        diagnostics.youtube = { status: report.status, count: report.count, message: report.message };
+      } else {
+        const vids = await this.youtubeAdapter.fetch(keywordItem.keyword, limit);
+        fetchedItems.push(...vids);
+      }
     }
+
 
     let saved = 0;
     let deduped = 0;
@@ -81,7 +103,7 @@ export class FunFeedIngestionService {
       }
     }
 
-    return { fetched: fetchedItems.length, deduped, saved };
+    return { fetched: fetchedItems.length, deduped, saved, diagnostics };
   }
 
   private async enrichItemWithLlm(item: NormalizedMedia, fallbackTopic: KeywordItem['topic']) {

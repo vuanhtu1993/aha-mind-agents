@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Logger } from '@nestjs/common';
-import { NormalizedMedia, SourceAdapter } from './source-adapter.interface';
+import { NormalizedMedia, SourceAdapter, SourceReport } from './source-adapter.interface';
 
 export class YoutubeAdapter implements SourceAdapter {
   readonly source = 'youtube';
@@ -8,10 +8,18 @@ export class YoutubeAdapter implements SourceAdapter {
 
   constructor(private readonly apiKey: string) {}
 
-  async fetch(keyword: string, limit = 5): Promise<NormalizedMedia[]> {
+  async fetchWithReport(keyword: string, limit = 5): Promise<{ items: NormalizedMedia[]; report: SourceReport }> {
     if (!this.apiKey) {
       this.logger.warn('YOUTUBE_DATA_API_KEY chưa được cấu hình. Bỏ qua fetch YouTube.');
-      return [];
+      return {
+        items: [],
+        report: {
+          source: 'youtube',
+          status: 'missing_key',
+          count: 0,
+          message: 'YOUTUBE_DATA_API_KEY chưa được thiết lập trong biến môi trường.',
+        },
+      };
     }
 
     try {
@@ -24,11 +32,11 @@ export class YoutubeAdapter implements SourceAdapter {
           maxResults: limit,
           videoDuration: 'short',
         },
-        timeout: 5000,
+        timeout: 8000,
       });
 
       const items = response.data?.items || [];
-      return items
+      const normalized = items
         .filter((item: any) => item.id?.videoId)
         .map((item: any): NormalizedMedia => {
           const videoId = item.id.videoId;
@@ -46,9 +54,34 @@ export class YoutubeAdapter implements SourceAdapter {
             rating: 'g',
           };
         });
+
+      return {
+        items: normalized,
+        report: {
+          source: 'youtube',
+          status: 'ok',
+          count: normalized.length,
+        },
+      };
     } catch (error: any) {
-      this.logger.error(`Lỗi khi gọi YouTube API [${keyword}]: ${error.message}`);
-      return [];
+      const errorMsg =
+        error.response?.data?.error?.message || error.message;
+      this.logger.error(`Lỗi khi gọi YouTube API [${keyword}]: ${errorMsg}`);
+      return {
+        items: [],
+        report: {
+          source: 'youtube',
+          status: 'error',
+          count: 0,
+          message: errorMsg,
+        },
+      };
     }
   }
+
+  async fetch(keyword: string, limit = 5): Promise<NormalizedMedia[]> {
+    const res = await this.fetchWithReport(keyword, limit);
+    return res.items;
+  }
 }
+

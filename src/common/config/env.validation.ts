@@ -31,6 +31,10 @@ export const EnvSchema = z.object({
   GOOGLE_TTS_RATE_LIMIT_RPM: z.coerce.number().default(30),
   GOOGLE_CLOUD_TTS_MODEL: z.string().default('en-US-Journey-F'),
 
+  // Fun Feed External Media Sources
+  GIPHY_API_KEY: z.string().optional(),
+  YOUTUBE_DATA_API_KEY: z.string().optional(),
+
   // Bảo mật Dashboard & Internal Webhooks
   CRON_SECRET: z.string().default('aha-mind-secret-2026'),
 }).passthrough();
