@@ -27,13 +27,13 @@ import { FunFeedCronController } from './controllers/fun-feed-cron.controller';
     {
       provide: GiphyAdapter,
       useFactory: (config: ConfigService) =>
-        new GiphyAdapter(config.get<string>('GIPHY_API_KEY', '')),
+        new GiphyAdapter(config.get<string>('GIPHY_API_KEY', process.env.GIPHY_API_KEY || '')),
       inject: [ConfigService],
     },
     {
       provide: YoutubeAdapter,
       useFactory: (config: ConfigService) =>
-        new YoutubeAdapter(config.get<string>('YOUTUBE_DATA_API_KEY', '')),
+        new YoutubeAdapter(config.get<string>('YOUTUBE_DATA_API_KEY', process.env.YOUTUBE_DATA_API_KEY || '')),
       inject: [ConfigService],
     },
     {

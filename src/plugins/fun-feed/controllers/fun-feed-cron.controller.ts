@@ -1,7 +1,7 @@
-import { Controller, Get, Req, UnauthorizedException, Logger } from '@nestjs/common';
+import { Controller, Get, Req, Query, UnauthorizedException, Logger } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { FunFeedIngestionService } from '../services/fun-feed-ingestion.service';
 import { FUNNY_KEYWORDS_POOL } from '../config/keywords.config';
 
@@ -18,7 +18,13 @@ export class FunFeedCronController {
 
   @Get('cron-ingest')
   @ApiOperation({ summary: 'Kích hoạt Ingest định kỳ từ Vercel Cron (Cần Authorization nếu có CRON_SECRET)' })
-  async handleVercelCron(@Req() req?: Request | any) {
+  @ApiQuery({ name: 'keyword', required: false, description: 'Từ khóa tùy chọn để cào (Mặc định chọn ngẫu nhiên trong pool)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Số lượng items cần cào (mặc định 4)' })
+  async handleVercelCron(
+    @Req() req?: Request | any,
+    @Query('keyword') customKeyword?: string,
+    @Query('limit') customLimit?: string,
+  ) {
     const rawHeader = req?.headers?.['authorization'] || (typeof req === 'string' ? req : undefined);
     const cronSecret = this.configService.get<string>('CRON_SECRET');
     if (cronSecret) {
@@ -29,18 +35,20 @@ export class FunFeedCronController {
       }
     }
 
-    // Chọn ngẫu nhiên 1 từ khóa để cào nhanh trong 5-10s (tránh Vercel Timeout)
-    const randomKeyword =
-      FUNNY_KEYWORDS_POOL[Math.floor(Math.random() * FUNNY_KEYWORDS_POOL.length)];
-    this.logger.log(`Bắt đầu Ingest cho từ khóa [${randomKeyword.keyword}]...`);
+    const keywordItem = customKeyword
+      ? { keyword: customKeyword, topic: 'grammar' as const, source: 'all' as const }
+      : FUNNY_KEYWORDS_POOL[Math.floor(Math.random() * FUNNY_KEYWORDS_POOL.length)];
 
-    const result = await this.ingestionService.ingestSingleKeyword(randomKeyword, 4);
+    const limit = customLimit ? parseInt(customLimit, 10) : 4;
+    this.logger.log(`Bắt đầu Ingest cho từ khóa [${keywordItem.keyword}] (source: ${keywordItem.source}, limit: ${limit})...`);
+
+    const result = await this.ingestionService.ingestSingleKeyword(keywordItem, limit);
 
     return {
       success: true,
       processedKeywords: 1,
-      keyword: randomKeyword.keyword,
-      topic: randomKeyword.topic,
+      keyword: keywordItem.keyword,
+      topic: keywordItem.topic,
       stats: result,
     };
   }
