@@ -31,6 +31,7 @@ async function bootstrap() {
     .setTitle('aha-mind:agents API Gateway')
     .setDescription('Hệ thống điều phối và thực thi Autonomous Multi-Agent Workflows')
     .setVersion('1.0.0')
+    .addBearerAuth()
     .addTag('Health', 'Kiểm tra sức khỏe hệ thống')
     .addTag('Agents', 'Định tuyến và thực thi Agent Pipelines')
     .addTag('Status', 'Server-Sent Events (SSE) theo dõi tiến độ Job')
