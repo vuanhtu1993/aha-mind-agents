@@ -1,0 +1,16 @@
+export interface NormalizedMedia {
+  source: 'giphy' | 'youtube' | 'generated';
+  sourceId: string;
+  sourceUrl: string;
+  type: 'gif' | 'image' | 'video' | 'short_video';
+  title: string;
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  attribution?: string;
+  rating?: string;
+}
+
+export interface SourceAdapter {
+  readonly source: string;
+  fetch(keyword: string, limit?: number): Promise<NormalizedMedia[]>;
+}
