@@ -15,27 +15,69 @@ export interface KeywordItem {
 }
 
 export const FUNNY_KEYWORDS_POOL: KeywordItem[] = [
-  // Grammar
-  { keyword: 'english grammar', topic: 'grammar', source: 'all' },
+  // 1. Trending Hashtags (YouTube Shorts & Reels Creator Community)
+  { keyword: '#englishmeme', topic: 'grammar', source: 'all' },
+  { keyword: '#learnenglish #funny', topic: 'conversation', source: 'all' },
+  { keyword: '#grammarpolice', topic: 'grammar', source: 'all' },
+  { keyword: '#englishhumor', topic: 'conversation', source: 'all' },
+  { keyword: '#eslhumor', topic: 'conversation', source: 'all' },
+  { keyword: '#englishjokes', topic: 'conversation', source: 'all' },
+  { keyword: '#pronunciationchallenge', topic: 'pronunciation', source: 'all' },
+  { keyword: '#britishvsamerican', topic: 'pronunciation', source: 'all' },
+  { keyword: '#englishfail', topic: 'grammar', source: 'all' },
+  { keyword: '#idiomsoftheday #funny', topic: 'idiom', source: 'all' },
+  { keyword: '#funnyenglish', topic: 'conversation', source: 'all' },
+  { keyword: '#confusingenglish', topic: 'vocabulary', source: 'all' },
+
+  // 2. Grammar & Sentence Structure Fails
+  { keyword: 'english grammar meme', topic: 'grammar', source: 'all' },
   { keyword: 'grammar police', topic: 'grammar', source: 'all' },
-  { keyword: 'past tense', topic: 'grammar', source: 'all' },
-  { keyword: 'grammar', topic: 'grammar', source: 'all' },
+  { keyword: 'past tense funny', topic: 'grammar', source: 'all' },
+  { keyword: 'oxford comma meme', topic: 'grammar', source: 'all' },
+  { keyword: "their there they're meme", topic: 'grammar', source: 'all' },
+  { keyword: 'autocorrect english fail', topic: 'grammar', source: 'all' },
+  { keyword: 'irregular verbs meme', topic: 'grammar', source: 'all' },
+  { keyword: 'passive voice funny', topic: 'grammar', source: 'all' },
+  { keyword: 'apostrophe fail', topic: 'grammar', source: 'all' },
+  { keyword: 'punctuation saves lives', topic: 'grammar', source: 'all' },
 
-  // Idioms
-  { keyword: 'idioms', topic: 'idiom', source: 'all' },
-  { keyword: 'break a leg', topic: 'idiom', source: 'all' },
-  { keyword: 'english idioms', topic: 'idiom', source: 'all' },
+  // 3. Pronunciation & Accents
+  { keyword: 'silent letters english', topic: 'pronunciation', source: 'all' },
+  { keyword: 'english pronunciation meme', topic: 'pronunciation', source: 'all' },
+  { keyword: 'british accent vs american accent', topic: 'pronunciation', source: 'all' },
+  { keyword: 'tongue twister challenge', topic: 'pronunciation', source: 'all' },
+  { keyword: 'misheard lyrics english', topic: 'pronunciation', source: 'all' },
+  { keyword: 'accent challenge funny', topic: 'pronunciation', source: 'all' },
+  { keyword: 'pronouncing english words wrong', topic: 'pronunciation', source: 'all' },
+  { keyword: 'australian slang vs british', topic: 'pronunciation', source: 'all' },
 
-  // Pronunciation
-  { keyword: 'pronunciation', topic: 'pronunciation', source: 'all' },
-  { keyword: 'silent letters', topic: 'pronunciation', source: 'all' },
+  // 4. Idioms, Slang & Figurative Language
+  { keyword: 'idioms taken literally', topic: 'idiom', source: 'all' },
+  { keyword: 'english idioms funny', topic: 'idiom', source: 'all' },
+  { keyword: 'break a leg meme', topic: 'idiom', source: 'all' },
+  { keyword: 'piece of cake idiom', topic: 'idiom', source: 'all' },
+  { keyword: 'bite the bullet meme', topic: 'idiom', source: 'all' },
+  { keyword: 'gen z slang english', topic: 'idiom', source: 'all' },
+  { keyword: 'british slang funny', topic: 'idiom', source: 'all' },
+  { keyword: 'english idioms animation', topic: 'idiom', source: 'all' },
 
-  // Vocabulary
-  { keyword: 'vocabulary', topic: 'vocabulary', source: 'all' },
-  { keyword: 'spelling', topic: 'vocabulary', source: 'all' },
+  // 5. Vocabulary, Spelling & Confusing Words
+  { keyword: 'confusing english words', topic: 'vocabulary', source: 'all' },
+  { keyword: 'english spelling makes no sense', topic: 'vocabulary', source: 'all' },
+  { keyword: 'homophones funny english', topic: 'vocabulary', source: 'all' },
+  { keyword: 'false friends english', topic: 'vocabulary', source: 'all' },
+  { keyword: 'spelling bee fail', topic: 'vocabulary', source: 'all' },
+  { keyword: 'english vocabulary meme', topic: 'vocabulary', source: 'all' },
+  { keyword: 'synonyms gone wrong', topic: 'vocabulary', source: 'all' },
+  { keyword: 'long english words funny', topic: 'vocabulary', source: 'all' },
 
-  // Conversation & Culture
-  { keyword: 'learning english', topic: 'conversation', source: 'all' },
-  { keyword: 'english teacher', topic: 'conversation', source: 'all' },
-  { keyword: 'english class', topic: 'conversation', source: 'all' },
+  // 6. Real-life Conversation & Learning Struggles
+  { keyword: 'when you try to speak english', topic: 'conversation', source: 'all' },
+  { keyword: 'ordering food in english funny', topic: 'conversation', source: 'all' },
+  { keyword: 'job interview in english funny', topic: 'conversation', source: 'all' },
+  { keyword: 'english teacher meme', topic: 'conversation', source: 'all' },
+  { keyword: 'speaking english with native speaker', topic: 'conversation', source: 'all' },
+  { keyword: 'when your english is bad', topic: 'conversation', source: 'all' },
+  { keyword: 'thinking in english meme', topic: 'conversation', source: 'all' },
+  { keyword: 'english class funny moments', topic: 'conversation', source: 'all' },
 ];

@@ -23,10 +23,14 @@ export class YoutubeAdapter implements SourceAdapter {
     }
 
     try {
+      // Hỗ trợ hashtag và tự động đính kèm ngữ cảnh tiếng Anh nếu từ khóa quá tổng quát (ví dụ: #meme, funny)
+      const hasEnglishContext = /(english|grammar|vocab|idiom|pronunc|slang|spell|esl|learn)/i.test(keyword);
+      const query = hasEnglishContext ? `${keyword} shorts` : `${keyword} english shorts`;
+
       const response = await axios.get('https://www.googleapis.com/youtube/v3/search', {
         params: {
           key: this.apiKey,
-          q: `${keyword} shorts`,
+          q: query,
           part: 'snippet',
           type: 'video',
           maxResults: limit,

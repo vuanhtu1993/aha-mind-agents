@@ -23,11 +23,16 @@ export class GiphyAdapter implements SourceAdapter {
     }
 
     try {
+      // Làm sạch ký tự '#' cho tag search của GIPHY và đính kèm ngữ cảnh tiếng Anh nếu quá chung chung
+      const cleanKeyword = keyword.replace(/#/g, ' ').replace(/\s+/g, ' ').trim();
+      const hasEnglishContext = /(english|grammar|vocab|idiom|pronunc|slang|spell|esl|learn)/i.test(cleanKeyword);
+      const query = hasEnglishContext ? cleanKeyword : `${cleanKeyword} english`;
+
       // 1. Tìm kiếm ưu tiên rating 'g' (an toàn tuyệt đối)
       const response = await axios.get('https://api.giphy.com/v1/gifs/search', {
         params: {
           api_key: this.apiKey,
-          q: keyword,
+          q: query,
           limit,
           rating: 'g',
           lang: 'en',
@@ -42,7 +47,7 @@ export class GiphyAdapter implements SourceAdapter {
         const fallbackResponse = await axios.get('https://api.giphy.com/v1/gifs/search', {
           params: {
             api_key: this.apiKey,
-            q: keyword,
+            q: query,
             limit,
             rating: 'pg',
             lang: 'en',
