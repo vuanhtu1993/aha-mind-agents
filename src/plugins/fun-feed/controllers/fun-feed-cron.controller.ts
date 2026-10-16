@@ -1,6 +1,6 @@
 import { Controller, Get, Headers, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
 import { FunFeedIngestionService } from '../services/fun-feed-ingestion.service';
 import { FUNNY_KEYWORDS_POOL } from '../config/keywords.config';
 
@@ -16,6 +16,12 @@ export class FunFeedCronController {
 
   @Get('cron-ingest')
   @ApiOperation({ summary: 'Kích hoạt Ingest định kỳ từ Vercel Cron' })
+  @ApiHeader({
+    name: 'authorization',
+    description: 'Bearer <CRON_SECRET> (Bắt buộc nếu đã đặt CRON_SECRET trong .env)',
+    required: false,
+    example: 'Bearer your_secret_here',
+  })
   async handleVercelCron(@Headers('authorization') authHeader?: string) {
     const cronSecret = this.configService.get<string>('CRON_SECRET');
     if (cronSecret) {
