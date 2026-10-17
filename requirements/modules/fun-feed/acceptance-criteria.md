@@ -80,11 +80,27 @@
 * **When (Hành động):** Gửi yêu cầu `GET /api/funny-feed/cron-ingest`.
 * **Then (Kỳ vọng):**
   1. Hệ thống xác thực thành công.
-  2. Bốc ngẫu nhiên 1 từ khóa trong danh mục (ví dụ `english grammar`).
-  3. Cào media từ GIPHY và YouTube, kiểm tra trùng lặp (`dedup`).
-  4. Gọi AI phân tích và lưu vào MongoDB với `status = 'published'`.
+  2. Bốc ngẫu nhiên 1 từ khóa trong danh mục hoặc nhận từ khóa tùy chọn.
+  3. Kích hoạt cào media từ các Adapter tương ứng (GIPHY, YouTube, Threads, Reddit), kiểm tra trùng lặp (`dedup`).
+  4. Gọi AI phân tích và lưu vào MongoDB với `status = 'published'` nếu `isSafe == true` và `learningScore >= 0.4`.
   5. Toàn bộ thời gian xử lý kết thúc trong vòng **< 10 giây** để tránh lỗi Vercel Timeout.
-  6. Trả về `HTTP 200 OK` với thống kê `{ fetched, deduped, saved }`.
+  6. Trả về `HTTP 200 OK` với thống kê `{ fetched, deduped, saved, diagnostics }`.
+
+#### Kịch bản 3.3: Thu thập và chuẩn hóa dữ liệu từ Reddit (`RedditAdapter`)
+* **Given (Bối cảnh):** Ingestion được kích hoạt với nguồn `reddit` hoặc keyword thuộc subreddit chỉ định (`r/EnglishLearning`, `r/grammar`, `r/engrish`).
+* **When (Hành động):** `RedditAdapter.fetch()` thực thi truy vấn Reddit JSON endpoint.
+* **Then (Kỳ vọng):**
+  1. Tự động lọc bỏ các bài viết dạng text thuần (không có hình ảnh), bài ghim (stickied) và bài đánh dấu người lớn (`over_18: true`).
+  2. Chuẩn hóa media: `type: 'image'` (hoặc `'gif'`), `mediaUrl` là link ảnh trực tiếp (`i.redd.it` hoặc `url_overridden_by_dest`), `attribution` là tên tác giả Reddit (`u/username`).
+  3. LLM trích xuất `title` của bài viết Reddit để hiểu ngữ cảnh châm biếm, sinh ra `whyFunny` và `youLearned` sát thực tế.
+
+#### Kịch bản 3.4: Thu thập và chuẩn hóa dữ liệu từ Threads (`ThreadsAdapter`)
+* **Given (Bối cảnh):** Ingestion được kích hoạt với nguồn `threads` và từ khóa hashtag tiếng Anh (`#learnenglish`, `#englishjokes`).
+* **When (Hành động):** `ThreadsAdapter.fetch()` thực thi truy vấn Threads API / Scraper endpoint.
+* **Then (Kỳ vọng):**
+  1. Nếu API Token chưa được cấu hình hoặc gặp lỗi kết nối, `fetchWithReport()` trả về report `status: 'missing_key'` hoặc `'error'` an toàn mà không làm sập tiến trình Ingestion chung.
+  2. Khi có dữ liệu, chuẩn hóa media với `source: 'threads'`, `type: 'image'` hoặc `'short_video'`.
+  3. LLM phân tích văn bản bài viết Threads và đúc kết bài học tiếng Anh tương ứng.
 
 ---
 

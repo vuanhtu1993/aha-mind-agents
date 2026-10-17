@@ -16,11 +16,11 @@ Việc học tiếng Anh truyền thống của người học thường đối 
 
 ### 1.2. Giải Pháp Kiến Trúc (Architectural Solution)
 Nhằm mang lại trải nghiệm học tập tự nhiên (Edutainment), tính năng **Fun Feed** biến việc học tiếng Anh thành trải nghiệm lướt meme vui nhộn tương tự TikTok:
-* **Học qua Meme & Video Ngắn (Contextual Meme Learning):** Mỗi meme hoặc video ngắn từ GIPHY và YouTube Shorts đều được AI (Gemini / Hive) "giải phẫu" để cung cấp: *tại sao nó buồn cười* (`whyFunny`) và *bài học rút ra* (`youLearned`).
+* **Học qua Đa Phương Tiện Thực Tế (Contextual Multi-Source Learning):** Mỗi meme hoặc video ngắn từ **GIPHY, YouTube Shorts, Threads (Meta) và Reddit** (và kế thừa TikTok ở Phase 2) đều được AI (Gemini / Hive) "giải phẫu" để cung cấp: *tại sao nó buồn cười* (`whyFunny`) và *bài học rút ra* (`youLearned`).
 * **Kiến Trúc Tách Rời Hoàn Toàn (Decoupled Ingestion & Serving):** 
-  - Toàn bộ khâu cào dữ liệu, lọc an toàn và làm giàu nội dung được đẩy về hậu trường thông qua **Vercel Cron Trigger dạng Light-Batch**.
-  - Phía Client (`aha-tools`) chỉ đọc siêu dữ liệu (Metadata) siêu nhẹ qua **Cursor Pagination** từ MongoDB, còn băng thông media (video/GIF) được truyền trực tiếp từ CDN của GIPHY/YouTube.
-* **Cơ Chế Kiểm Duyệt Tự Động & Tự Ẩn (Community Moderation):** Nội dung bắt buộc đạt chuẩn Rating G, qua màng lọc an toàn của LLM và tự động bị ẩn (`hidden`) khi nhận $\ge 3$ lượt báo cáo vi phạm từ cộng đồng.
+  - Toàn bộ khâu cào dữ liệu, lọc an toàn và làm giàu nội dung được đẩy về hậu trường thông qua **Vercel Cron Trigger dạng Light-Batch**, vận hành độc lập theo từng `SourceAdapter` cắm rút (Plug-and-play).
+  - Phía Client (`aha-tools`) chỉ đọc siêu dữ liệu (Metadata) siêu nhẹ qua **Cursor Pagination** từ MongoDB, còn băng thông media (video/ảnh/GIF) được truyền trực tiếp từ CDN của nền tảng nguồn (GIPHY, YouTube, i.redd.it, Meta CDN).
+* **Cơ Chế Kiểm Duyệt Tự Động & Tự Ẩn (Community Moderation):** Nội dung bắt buộc đạt chuẩn an toàn, qua màng lọc của LLM (`isSafe === true` và `learningScore >= 0.4`) và tự động bị ẩn (`hidden`) khi nhận $\ge 3$ lượt báo cáo vi phạm từ cộng đồng.
 
 ---
 
@@ -28,9 +28,9 @@ Nhằm mang lại trải nghiệm học tập tự nhiên (Edutainment), tính n
 
 | Mã FR | Tên tính năng | Tác nhân | Tiền điều kiện | Hậu điều kiện | API Endpoint tương ứng | Tiêu chí chấp nhận (AC) |
 |---|---|---|---|---|---|---|
-| **FR-FEED-01** | Lướt bảng tin phân trang con trỏ | Học viên / Client PWA | Ứng dụng đã khởi tạo | Trả về 10 media items mới nhất kèm `nextCursor` | [`GET /api/funny-feed`](api-contract.md#11-get-apifunny-feed) | [`AC-FEED-01`](acceptance-criteria.md#ac-feed-01) |
+| **FR-FEED-01** | Lướt bảng tin phân trang con trỏ | Học viên / Client PWA | Ứng dụng đã khởi tạo | Trả về 10 media items mới nhất (hỗ trợ GIF, short video, meme image) kèm `nextCursor` | [`GET /api/funny-feed`](api-contract.md#11-get-apifunny-feed) | [`AC-FEED-01`](acceptance-criteria.md#ac-feed-01) |
 | **FR-FEED-02** | Ghi nhận tương tác người dùng | Học viên / Client PWA | `contentId` hợp lệ | Cập nhật số liệu like/save/report, tự ẩn nếu $\ge 3$ reports | [`POST /api/funny-feed/:id/interact`](api-contract.md#12-post-apifunny-feedidinteract) | [`AC-FEED-02`](acceptance-criteria.md#ac-feed-02) |
-| **FR-FEED-03** | Kích hoạt cào và làm giàu dữ liệu định kỳ | Vercel Cron Scheduler | Header chứa `CRON_SECRET` hợp lệ | Bốc từ khóa ngẫu nhiên, cào GIPHY/YouTube, enrich bằng LLM và lưu DB | [`GET /api/funny-feed/cron-ingest`](api-contract.md#13-get-apifunny-feedcron-ingest) | [`AC-FEED-03`](acceptance-criteria.md#ac-feed-03) |
+| **FR-FEED-03** | Kích hoạt cào và làm giàu dữ liệu định kỳ đa nguồn | Vercel Cron Scheduler | Header chứa `CRON_SECRET` hợp lệ | Bốc ngẫu nhiên từ khóa/subreddit, cào từ GIPHY/YouTube/Threads/Reddit, enrich bằng LLM và lưu DB | [`GET /api/funny-feed/cron-ingest`](api-contract.md#13-get-apifunny-feedcron-ingest) | [`AC-FEED-03`](acceptance-criteria.md#ac-feed-03) |
 | **FR-FEED-04** | Trích xuất meme hài hước qua Agent Tool | Aha Mind Agent | Learner yêu cầu gợi ý meme/video | Trả về 1-3 items hài hước đã được xuất bản | Tool `get_funny_english` | [`AC-FEED-04`](acceptance-criteria.md#ac-feed-04) |
 
 ---
@@ -88,22 +88,22 @@ sequenceDiagram
 - **Ánh xạ FR:** [`FR-FEED-03`](#2-yeu-cau-chuc-nang)
 - **Ánh xạ API:** [`GET /api/funny-feed/cron-ingest`](api-contract.md#13-get-apifunny-feedcron-ingest)
 
-#### Sơ Đồ Trình Tự — Thu Thập & Làm Giàu Nội Dung Qua Cron (Sequence Diagram Flow 2)
+#### Sơ Đồ Trình Tự — Thu Thập & Làm Giàu Nội Dung Đa Nguồn Qua Cron (Sequence Diagram Flow 2)
 ```mermaid
 sequenceDiagram
     autonumber
     participant Cron as Vercel Cron Trigger (mỗi 6h)
     participant CronCtrl as FunFeedCronController
     participant IngestSvc as FunFeedIngestionService
-    participant Adapters as Giphy & YouTube Adapters
+    participant Adapters as SourceAdapters (Giphy / YouTube / Threads / Reddit)
     participant LLM as HiveService / GeminiService
     participant DB as MongoDB
 
     Cron->>CronCtrl: GET /api/funny-feed/cron-ingest (Bearer CRON_SECRET)
     CronCtrl->>CronCtrl: Xác thực Bearer Token
-    CronCtrl->>IngestSvc: ingestSingleKeyword(randomKeyword, limit=4)
-    IngestSvc->>Adapters: fetch(keyword, limit=4)
-    Adapters-->>IngestSvc: Danh sách NormalizedMedia[]
+    CronCtrl->>IngestSvc: ingestSingleKeyword(randomKeywordItem, limit=4)
+    IngestSvc->>Adapters: fetch(keyword, limit=4) dựa trên cấu hình nguồn (source)
+    Adapters-->>IngestSvc: Danh sách NormalizedMedia[] (GIF, image, video, short_video)
     
     loop Từng Item được cào về
         IngestSvc->>DB: Kiểm tra trùng lặp (source + sourceId)
@@ -117,7 +117,7 @@ sequenceDiagram
             end
         end
     end
-    IngestSvc-->>CronCtrl: { fetched, deduped, saved }
+    IngestSvc-->>CronCtrl: { fetched, deduped, saved, diagnostics }
     CronCtrl-->>Cron: HTTP 200 OK (Thực thi trong 5-10s)
 ```
 

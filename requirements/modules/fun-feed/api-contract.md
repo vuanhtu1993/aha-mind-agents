@@ -51,9 +51,57 @@
         },
         "status": "published",
         "publishedAt": "2026-10-16T08:30:00.000Z"
+      },
+      {
+        "_id": "670e3f1a2b3c4d5e6f7a8b9e",
+        "source": "reddit",
+        "sourceId": "1g9xyz",
+        "sourceUrl": "https://reddit.com/r/EnglishLearning/comments/1g9xyz/oxford_comma_fail",
+        "type": "image",
+        "title": "We invited the strippers, JFK and Stalin (Oxford comma fail)",
+        "mediaUrl": "https://i.redd.it/sample_oxford_comma.jpg",
+        "thumbnailUrl": "https://b.thumbs.redditmedia.com/sample_thumb.jpg",
+        "attribution": "u/GrammarNerd99",
+        "topic": "grammar",
+        "level": "intermediate",
+        "whyFunny": "Sự thiếu vắng dấu phẩy Oxford biến JFK và Stalin thành vũ công thoát y một cách tức cười.",
+        "youLearned": "Dấu phẩy Oxford (Oxford Comma) đặt trước từ 'and' cuối cùng trong danh sách liệt kê để tránh tối nghĩa.",
+        "learningScore": 0.95,
+        "stats": {
+          "views": 850,
+          "likes": 120,
+          "saves": 34,
+          "reports": 0
+        },
+        "status": "published",
+        "publishedAt": "2026-10-16T08:28:00.000Z"
+      },
+      {
+        "_id": "670e3f1a2b3c4d5e6f7a8b9f",
+        "source": "threads",
+        "sourceId": "34891238912",
+        "sourceUrl": "https://threads.net/@englishjokes/post/34891238912",
+        "type": "image",
+        "title": "English is weird: Tough, though, thought, through",
+        "mediaUrl": "https://scontent.cdninstagram.com/v/sample_threads_meme.jpg",
+        "thumbnailUrl": "https://scontent.cdninstagram.com/v/sample_threads_thumb.jpg",
+        "attribution": "englishjokes",
+        "topic": "pronunciation",
+        "level": "beginner",
+        "whyFunny": "Trò đùa về cách phát âm hoàn toàn trái ngược của đuôi '-ough' dù viết gần như giống hệt nhau.",
+        "youLearned": "Học cách phát âm 4 từ dễ nhầm lẫn: Tough (/tʌf/), Though (/ðoʊ/), Thought (/θɔːt/), Through (/θruː/).",
+        "learningScore": 0.92,
+        "stats": {
+          "views": 630,
+          "likes": 88,
+          "saves": 19,
+          "reports": 0
+        },
+        "status": "published",
+        "publishedAt": "2026-10-16T08:20:00.000Z"
       }
     ],
-    "nextCursor": "2026-10-16T08:30:00.000Z",
+    "nextCursor": "2026-10-16T08:20:00.000Z",
     "hasMore": true
   }
   ```
@@ -99,12 +147,13 @@
 - **Ánh xạ User Story:** [`US-FEED-02`](spec.md#us-feed-02)
 - **Ánh xạ Tiêu chí Chấp nhận:** [`AC-FEED-03`](acceptance-criteria.md#ac-feed-03)
 
-* **Mục đích:** Endpoint nhận lệnh định kỳ từ **Vercel Cron** để cào dữ liệu mới từ GIPHY/YouTube, lọc an toàn qua AI và xuất bản tự động.
+* **Mục đích:** Endpoint nhận lệnh định kỳ từ **Vercel Cron** để cào dữ liệu mới từ GIPHY / YouTube / Threads / Reddit, lọc an toàn qua AI và xuất bản tự động.
 * **Request Headers:**
   - `Authorization: Bearer <CRON_SECRET>` *(Bắt buộc nếu đã cấu hình biến môi trường `CRON_SECRET`)*.
 * **Query Parameters:**
   | Tham số | Kiểu | Bắt buộc | Mô tả |
   |---|---|---|---|
+  | `source` | `string` | Không | Nguồn cần cào: `giphy`, `youtube`, `threads`, `reddit`, `all` (mặc định lấy theo config từ khóa). |
   | `keyword` | `string` | Không | Từ khóa tùy chọn (nếu không truyền, hệ thống tự bốc ngẫu nhiên từ pool). |
   | `limit` | `number` | Không | Số lượng items tối đa cần cào trong 1 lượt (mặc định 4). |
 
@@ -113,12 +162,19 @@
   {
     "success": true,
     "processedKeywords": 1,
-    "keyword": "past tense",
+    "keyword": "oxford comma",
     "topic": "grammar",
+    "source": "all",
     "stats": {
-      "fetched": 4,
+      "fetched": 6,
       "deduped": 1,
-      "saved": 3
+      "saved": 4
+    },
+    "diagnostics": {
+      "giphy": { "status": "ok", "count": 2 },
+      "youtube": { "status": "ok", "count": 1 },
+      "reddit": { "status": "ok", "count": 2 },
+      "threads": { "status": "ok", "count": 1 }
     }
   }
   ```
@@ -140,14 +196,14 @@
 ```typescript
 interface AhaMediaContent {
   _id: string;
-  source: 'giphy' | 'youtube' | 'generated';
-  sourceId: string;                     // ID gốc từ nền tảng GIPHY/YouTube
+  source: 'giphy' | 'youtube' | 'threads' | 'reddit' | 'tiktok' | 'generated';
+  sourceId: string;                     // ID gốc từ nền tảng nguồn
   sourceUrl: string;                    // Link gốc (bắt buộc theo điều khoản Attribution)
   type: 'gif' | 'image' | 'video' | 'short_video';
   title: string;
-  mediaUrl: string;                     // URL file .gif từ GIPHY CDN hoặc link embed YouTube
+  mediaUrl: string;                     // URL file .gif, ảnh CDN (.jpg, .png), hoặc link embed YouTube
   thumbnailUrl?: string;
-  attribution?: string;                 // Tên channel hoặc creator gốc
+  attribution?: string;                 // Tên tác giả, subreddit hoặc creator gốc
   topic?: 'grammar' | 'vocabulary' | 'pronunciation' | 'idiom' | 'conversation';
   level?: 'beginner' | 'intermediate' | 'advanced';
   whyFunny?: string;                    // AI giải thích lý do hài hước

@@ -178,7 +178,7 @@ export type FunFeedAction = 'view' | 'like' | 'skip' | 'save' | 'report';
 
 export interface FunFeedItem {
   _id: string;
-  source: 'giphy' | 'youtube' | 'generated';
+  source: 'giphy' | 'youtube' | 'threads' | 'reddit' | 'tiktok' | 'generated';
   sourceId: string;
   sourceUrl: string;
   type: FunFeedMediaType;
