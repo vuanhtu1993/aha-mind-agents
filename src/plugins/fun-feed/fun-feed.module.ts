@@ -40,7 +40,13 @@ import { FunFeedCronController } from './controllers/fun-feed-cron.controller';
     },
     {
       provide: RedditAdapter,
-      useFactory: () => new RedditAdapter(),
+      useFactory: (config: ConfigService) =>
+        new RedditAdapter(
+          config.get<string>('REDDIT_CLIENT_ID', process.env.REDDIT_CLIENT_ID || ''),
+          config.get<string>('REDDIT_CLIENT_SECRET', process.env.REDDIT_CLIENT_SECRET || ''),
+          config.get<string>('REDDIT_PROXY_URL', process.env.REDDIT_PROXY_URL || ''),
+        ),
+      inject: [ConfigService],
     },
     {
       provide: ThreadsAdapter,

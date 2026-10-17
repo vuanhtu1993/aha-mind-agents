@@ -67,8 +67,15 @@ export class FunFeedIngestionService {
       }
     }
 
-    // 3. Fetch từ Reddit
-    if (this.redditAdapter && (keywordItem.source === 'reddit' || keywordItem.source === 'all')) {
+    // 3. Fetch từ Reddit (Chỉ tự động gọi khi source là 'reddit' hoặc khi đã cấu hình OAuth / Proxy)
+    const shouldFetchReddit =
+      this.redditAdapter &&
+      (keywordItem.source === 'reddit' ||
+        (keywordItem.source === 'all' &&
+          (typeof (this.redditAdapter as any).isConfigured !== 'function' ||
+            (this.redditAdapter as any).isConfigured())));
+
+    if (shouldFetchReddit && this.redditAdapter) {
       if (typeof (this.redditAdapter as any).fetchWithReport === 'function') {
         const { items, report } = await (this.redditAdapter as any).fetchWithReport(keywordItem.keyword, limit);
         fetchedItems.push(...items);

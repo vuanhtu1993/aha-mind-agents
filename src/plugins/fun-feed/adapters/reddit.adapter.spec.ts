@@ -106,6 +106,80 @@ describe('RedditAdapter', () => {
     );
   });
 
+  it('should authenticate via OAuth2 when credentials are provided', async () => {
+    const oauthAdapter = new RedditAdapter('client_id_123', 'client_secret_xyz');
+    expect(oauthAdapter.isConfigured()).toBe(true);
+
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        access_token: 'test_token_abc',
+        token_type: 'bearer',
+        expires_in: 3600,
+      },
+    });
+
+    mockedAxios.get.mockResolvedValueOnce({
+      data: {
+        data: {
+          children: [
+            {
+              data: {
+                id: 'oauth_post',
+                title: 'Post via OAuth',
+                permalink: '/r/grammar/comments/oauth_post/slug',
+                url: 'https://i.redd.it/oauth.jpg',
+                author: 'OAuthUser',
+                post_hint: 'image',
+                over_18: false,
+                stickied: false,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const result = await oauthAdapter.fetchWithReport('english pun', 2);
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      'https://www.reddit.com/api/v1/access_token',
+      'grant_type=client_credentials',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: expect.stringContaining('Basic '),
+        }),
+      }),
+    );
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      expect.stringContaining('https://oauth.reddit.com/search'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test_token_abc',
+        }),
+      }),
+    );
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].sourceId).toBe('oauth_post');
+  });
+
+  it('should identify unconfigured adapter properly', () => {
+    const unconfigured = new RedditAdapter();
+    expect(unconfigured.isConfigured()).toBe(false);
+
+    const withProxy = new RedditAdapter(undefined, undefined, 'http://proxy.example.com');
+    expect(withProxy.isConfigured()).toBe(true);
+  });
+
+  it('should handle 403 WAF blocking gracefully without crashing', async () => {
+    const error403: any = new Error('Request failed with status code 403');
+    error403.response = { status: 403, data: { message: 'Blocked by Fastly' } };
+    mockedAxios.get.mockRejectedValueOnce(error403);
+
+    const result = await adapter.fetchWithReport('homophones funny english', 5);
+    expect(result.report.status).toBe('error');
+    expect(result.report.count).toBe(0);
+    expect(result.items).toEqual([]);
+  });
+
   it('should handle network errors gracefully and return error report', async () => {
     mockedAxios.get.mockRejectedValueOnce(new Error('Rate limited 429'));
     const result = await adapter.fetchWithReport('r/EnglishLearning', 5);
@@ -114,3 +188,4 @@ describe('RedditAdapter', () => {
     expect(result.items).toEqual([]);
   });
 });
+
