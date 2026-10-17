@@ -5,6 +5,8 @@ import { AhaMediaContentDocument } from '../schemas/media-content.schema';
 import { NormalizedMedia } from '../adapters/source-adapter.interface';
 import { GiphyAdapter } from '../adapters/giphy.adapter';
 import { YoutubeAdapter } from '../adapters/youtube.adapter';
+import { RedditAdapter } from '../adapters/reddit.adapter';
+import { ThreadsAdapter } from '../adapters/threads.adapter';
 import { KeywordItem } from '../config/keywords.config';
 
 export const LlmEnrichmentSchema = z.object({
@@ -25,6 +27,8 @@ export class FunFeedIngestionService {
     private readonly aiService: any, // HiveService hoặc GeminiService
     private readonly giphyAdapter: GiphyAdapter,
     private readonly youtubeAdapter: YoutubeAdapter,
+    private readonly redditAdapter?: RedditAdapter,
+    private readonly threadsAdapter?: ThreadsAdapter,
   ) {}
 
   async ingestSingleKeyword(
@@ -34,15 +38,13 @@ export class FunFeedIngestionService {
     fetched: number;
     deduped: number;
     saved: number;
-    diagnostics?: {
-      giphy?: { status: string; count: number; message?: string };
-      youtube?: { status: string; count: number; message?: string };
-    };
+    diagnostics?: Record<string, { status: string; count: number; message?: string }>;
   }> {
     const fetchedItems: NormalizedMedia[] = [];
     const diagnostics: Record<string, { status: string; count: number; message?: string }> = {};
 
-    if (keywordItem.source === 'giphy' || keywordItem.source === 'all') {
+    // 1. Fetch từ GIPHY
+    if (this.giphyAdapter && (keywordItem.source === 'giphy' || keywordItem.source === 'all')) {
       if (typeof (this.giphyAdapter as any).fetchWithReport === 'function') {
         const { items, report } = await (this.giphyAdapter as any).fetchWithReport(keywordItem.keyword, limit);
         fetchedItems.push(...items);
@@ -53,7 +55,8 @@ export class FunFeedIngestionService {
       }
     }
 
-    if (keywordItem.source === 'youtube' || keywordItem.source === 'all') {
+    // 2. Fetch từ YouTube Shorts
+    if (this.youtubeAdapter && (keywordItem.source === 'youtube' || keywordItem.source === 'all')) {
       if (typeof (this.youtubeAdapter as any).fetchWithReport === 'function') {
         const { items, report } = await (this.youtubeAdapter as any).fetchWithReport(keywordItem.keyword, limit);
         fetchedItems.push(...items);
@@ -64,6 +67,29 @@ export class FunFeedIngestionService {
       }
     }
 
+    // 3. Fetch từ Reddit
+    if (this.redditAdapter && (keywordItem.source === 'reddit' || keywordItem.source === 'all')) {
+      if (typeof (this.redditAdapter as any).fetchWithReport === 'function') {
+        const { items, report } = await (this.redditAdapter as any).fetchWithReport(keywordItem.keyword, limit);
+        fetchedItems.push(...items);
+        diagnostics.reddit = { status: report.status, count: report.count, message: report.message };
+      } else {
+        const redditItems = await this.redditAdapter.fetch(keywordItem.keyword, limit);
+        fetchedItems.push(...redditItems);
+      }
+    }
+
+    // 4. Fetch từ Threads
+    if (this.threadsAdapter && (keywordItem.source === 'threads' || keywordItem.source === 'all')) {
+      if (typeof (this.threadsAdapter as any).fetchWithReport === 'function') {
+        const { items, report } = await (this.threadsAdapter as any).fetchWithReport(keywordItem.keyword, limit);
+        fetchedItems.push(...items);
+        diagnostics.threads = { status: report.status, count: report.count, message: report.message };
+      } else {
+        const threadsItems = await this.threadsAdapter.fetch(keywordItem.keyword, limit);
+        fetchedItems.push(...threadsItems);
+      }
+    }
 
     let saved = 0;
     let deduped = 0;
@@ -81,7 +107,7 @@ export class FunFeedIngestionService {
         const enriched = await this.enrichItemWithLlm(item, keywordItem.topic);
         if (!enriched.isSafe || enriched.learningScore < 0.4) {
           this.logger.warn(
-            `Bỏ qua item [${item.sourceId}] do không an toàn hoặc điểm thấp: ${enriched.learningScore}`,
+            `Bỏ qua item [${item.source}:${item.sourceId}] do không an toàn hoặc điểm thấp: ${enriched.learningScore}`,
           );
           continue;
         }
@@ -99,7 +125,7 @@ export class FunFeedIngestionService {
         });
         saved++;
       } catch (err: any) {
-        this.logger.error(`Lỗi enrich item [${item.sourceId}]: ${err.message}`);
+        this.logger.error(`Lỗi enrich item [${item.source}:${item.sourceId}]: ${err.message}`);
       }
     }
 
@@ -110,6 +136,7 @@ export class FunFeedIngestionService {
     const prompt = `Phân tích meme/video tiếng Anh sau:
 Tiêu đề: "${item.title}"
 Nguồn: ${item.source} (${item.sourceUrl})
+Định dạng: ${item.type}
 Chủ đề gợi ý: ${fallbackTopic}
 
 Hãy đánh giá xem nội dung có lành mạnh không (isSafe: true/false), giải thích ngắn gọn tại sao hài hước (whyFunny) và người học rút ra được bài học gì (youLearned).`;
