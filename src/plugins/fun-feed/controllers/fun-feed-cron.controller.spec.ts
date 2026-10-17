@@ -39,4 +39,21 @@ describe('FunFeedCronController', () => {
     const res = await controller.handleVercelCron();
     expect(res.success).toBe(true);
   });
+
+  it('should accept custom source query param and pass to ingestionService', async () => {
+    await controller.handleVercelCron(
+      { headers: { authorization: 'Bearer super-secret-cron-key' } },
+      'r/grammar',
+      '3',
+      'reddit',
+    );
+
+    expect(ingestionServiceMock.ingestSingleKeyword).toHaveBeenCalledWith(
+      expect.objectContaining({
+        keyword: 'r/grammar',
+        source: 'reddit',
+      }),
+      3,
+    );
+  });
 });
