@@ -219,7 +219,7 @@ export class HiveService implements OnModuleInit {
 
     const model = options?.model || this.defaultModel;
     const temperature = options?.temperature ?? 0.1;
-    const maxTokens = options?.maxTokens ?? 16384;
+    const maxTokens = options?.maxTokens ?? 8192;
 
     const rawMessages = typeof prompt === 'string'
       ? [{ role: 'user', content: prompt }]
@@ -245,7 +245,7 @@ export class HiveService implements OnModuleInit {
       callerSystemMsg ? callerSystemMsg.content : '',
       `You are an AI assistant that MUST respond ONLY with a valid JSON object matching the requested schema.${schemaInstruction}`,
       `Do not include markdown code block backticks (\`\`\`json) or introductory explanations.`,
-      `CRITICAL FOR REASONING MODELS: Keep internal reasoning brief and concise (< 500 tokens). Focus directly on outputting the final JSON object immediately. Do not loop or overthink.`,
+      `CRITICAL FOR REASONING MODELS: Keep internal reasoning brief and concise. Focus directly on the JSON output.`,
     ]
       .filter(Boolean)
       .join('\n\n');
