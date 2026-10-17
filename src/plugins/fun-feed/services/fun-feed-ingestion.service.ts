@@ -146,7 +146,8 @@ Nguồn: ${item.source} (${item.sourceUrl})
 Định dạng: ${item.type}
 Chủ đề gợi ý: ${fallbackTopic}
 
-Hãy đánh giá xem nội dung có lành mạnh không (isSafe: true/false), giải thích ngắn gọn tại sao hài hước (whyFunny) và người học rút ra được bài học gì (youLearned).`;
+Hãy đánh giá xem nội dung có lành mạnh không (isSafe: true/false), giải thích ngắn gọn tại sao hài hước (whyFunny) và người học rút ra được bài học gì (youLearned).
+LƯU Ý: Phân tích trực diện, súc tích (1-2 câu), không suy diễn lan man. Trả về đúng định dạng JSON yêu cầu.`;
 
     const res = await this.aiService.invokeStructured(
       LlmEnrichmentSchema,
@@ -161,6 +162,7 @@ Hãy đánh giá xem nội dung có lành mạnh không (isSafe: true/false), gi
           content: prompt,
         },
       ],
+      { maxTokens: 16384 },
     );
 
     return res.parsed;
