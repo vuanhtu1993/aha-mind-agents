@@ -11,7 +11,7 @@
 export interface KeywordItem {
   keyword: string;
   topic: 'grammar' | 'vocabulary' | 'pronunciation' | 'idiom' | 'conversation';
-  source: 'giphy' | 'youtube' | 'all';
+  source: 'giphy' | 'youtube' | 'threads' | 'reddit' | 'all';
 }
 
 export const FUNNY_KEYWORDS_POOL: KeywordItem[] = [
@@ -80,4 +80,18 @@ export const FUNNY_KEYWORDS_POOL: KeywordItem[] = [
   { keyword: 'when your english is bad', topic: 'conversation', source: 'all' },
   { keyword: 'thinking in english meme', topic: 'conversation', source: 'all' },
   { keyword: 'english class funny moments', topic: 'conversation', source: 'all' },
+
+  // 7. Curated Subreddits (Reddit Community Memes)
+  { keyword: 'r/EnglishLearning', topic: 'grammar', source: 'reddit' },
+  { keyword: 'r/grammar', topic: 'grammar', source: 'reddit' },
+  { keyword: 'r/engrish', topic: 'vocabulary', source: 'reddit' },
+  { keyword: 'oxford comma fail', topic: 'grammar', source: 'reddit' },
+  { keyword: 'english idiom meme', topic: 'idiom', source: 'reddit' },
+
+  // 8. Threads Community Hashtags & Topics
+  { keyword: '#learnenglish', topic: 'conversation', source: 'threads' },
+  { keyword: '#englishhumor', topic: 'conversation', source: 'threads' },
+  { keyword: '#englishjokes', topic: 'idiom', source: 'threads' },
+  { keyword: '#confusingenglish', topic: 'vocabulary', source: 'threads' },
+  { keyword: '#grammarpolice', topic: 'grammar', source: 'threads' },
 ];
