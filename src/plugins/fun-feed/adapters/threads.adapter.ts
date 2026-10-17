@@ -15,15 +15,23 @@ import { NormalizedMedia, SourceAdapter, SourceReport } from './source-adapter.i
 export class ThreadsAdapter implements SourceAdapter {
   readonly source = 'threads';
   private readonly logger = new Logger(ThreadsAdapter.name);
+  private static hasWarnedMissingKey = false;
 
   constructor(
     private readonly accessToken: string,
     private readonly rapidApiKey?: string,
   ) {}
 
+  isConfigured(): boolean {
+    return !!(this.accessToken || this.rapidApiKey);
+  }
+
   async fetchWithReport(keyword: string, limit = 5): Promise<{ items: NormalizedMedia[]; report: SourceReport }> {
-    if (!this.accessToken && !this.rapidApiKey) {
-      this.logger.warn('THREADS_ACCESS_TOKEN hoặc THREADS_RAPIDAPI_KEY chưa được thiết lập. Bỏ qua fetch Threads.');
+    if (!this.isConfigured()) {
+      if (!ThreadsAdapter.hasWarnedMissingKey) {
+        this.logger.warn('THREADS_ACCESS_TOKEN hoặc THREADS_RAPIDAPI_KEY chưa được thiết lập. Nguồn Threads sẽ tạm thời không thu thập dữ liệu.');
+        ThreadsAdapter.hasWarnedMissingKey = true;
+      }
       return {
         items: [],
         report: {

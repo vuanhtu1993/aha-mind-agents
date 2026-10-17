@@ -79,8 +79,15 @@ export class FunFeedIngestionService {
       }
     }
 
-    // 4. Fetch từ Threads
-    if (this.threadsAdapter && (keywordItem.source === 'threads' || keywordItem.source === 'all')) {
+    // 4. Fetch từ Threads (Chỉ tự động gọi khi source là 'threads' hoặc khi đã cấu hình API Key)
+    const shouldFetchThreads =
+      this.threadsAdapter &&
+      (keywordItem.source === 'threads' ||
+        (keywordItem.source === 'all' &&
+          (typeof (this.threadsAdapter as any).isConfigured !== 'function' ||
+            (this.threadsAdapter as any).isConfigured())));
+
+    if (shouldFetchThreads && this.threadsAdapter) {
       if (typeof (this.threadsAdapter as any).fetchWithReport === 'function') {
         const { items, report } = await (this.threadsAdapter as any).fetchWithReport(keywordItem.keyword, limit);
         fetchedItems.push(...items);

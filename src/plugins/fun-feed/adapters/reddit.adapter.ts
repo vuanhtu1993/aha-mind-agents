@@ -92,8 +92,17 @@ export class RedditAdapter implements SourceAdapter {
         },
       };
     } catch (error: any) {
+      const isConnectionRefused = error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED') || error.message?.includes('127.0.0.1');
       const errorMsg = error.response?.data?.message || error.message;
-      this.logger.error(`Lỗi khi cào Reddit [${keyword}]: ${errorMsg}`);
+
+      if (isConnectionRefused) {
+        this.logger.warn(
+          `Bỏ qua Reddit [${keyword}]: Không thể kết nối tới reddit.com (Do nhà mạng ISP chặn DNS Sinkhole 127.0.0.1 trên môi trường local).`,
+        );
+      } else {
+        this.logger.warn(`Không thể lấy dữ liệu Reddit [${keyword}]: ${errorMsg}`);
+      }
+
       return {
         items: [],
         report: {
