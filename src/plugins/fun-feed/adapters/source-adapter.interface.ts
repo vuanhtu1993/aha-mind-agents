@@ -1,5 +1,5 @@
 export interface NormalizedMedia {
-  source: 'giphy' | 'youtube' | 'generated';
+  source: 'giphy' | 'youtube' | 'threads' | 'reddit' | 'tiktok' | 'generated';
   sourceId: string;
   sourceUrl: string;
   type: 'gif' | 'image' | 'video' | 'short_video';

@@ -44,4 +44,16 @@ describe('Fun Feed Schemas & Config', () => {
     const err = validDoc.validateSync();
     expect(err).toBeUndefined();
   });
+
+  it('should accept reddit and threads as valid sources', () => {
+    const sourcePath: any = AhaMediaContentSchema.path('source');
+    expect(sourcePath.enumValues).toContain('reddit');
+    expect(sourcePath.enumValues).toContain('threads');
+  });
+
+  it('should accept image and short_video as valid media types', () => {
+    const typePath: any = AhaMediaContentSchema.path('type');
+    expect(typePath.enumValues).toContain('image');
+    expect(typePath.enumValues).toContain('short_video');
+  });
 });

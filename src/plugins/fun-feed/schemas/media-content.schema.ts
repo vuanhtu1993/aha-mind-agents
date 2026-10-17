@@ -5,7 +5,7 @@ export type AhaMediaContentDocument = AhaMediaContent & Document;
 
 @Schema({ timestamps: true, collection: 'aha_media_contents' })
 export class AhaMediaContent {
-  @Prop({ required: true, enum: ['giphy', 'youtube', 'generated'] })
+  @Prop({ required: true, enum: ['giphy', 'youtube', 'threads', 'reddit', 'tiktok', 'generated'] })
   source: string;
 
   @Prop({ required: true })
