@@ -8,6 +8,18 @@ import { YoutubeAdapter } from '../adapters/youtube.adapter';
 import { RedditAdapter } from '../adapters/reddit.adapter';
 import { ThreadsAdapter } from '../adapters/threads.adapter';
 import { KeywordItem } from '../config/keywords.config';
+import { CURATED_YOUTUBE_CHANNELS, YoutubeChannelConfig } from '../config/channels.config';
+
+/**
+ * FunFeedIngestionService: Điều phối quy trình thu thập (Ingestion), làm giàu dữ liệu bằng AI (LLM Enrichment)
+ * và lưu trữ nội dung giải trí học tiếng Anh vào Database.
+ *
+ * Hỗ trợ 2 mô hình thu thập:
+ * 1. Channel-Curated Ingestion: Thu thập theo danh mục kênh uy tín theo ngày (Ưu tiên, Freshness cao, Quota rẻ).
+ * 2. Keyword-based Ingestion: Cào ngẫu nhiên theo danh mục từ khóa (Dự phòng cho Giphy, Reddit, Threads).
+ *
+ * Made by Anh Tu - Share to be share
+ */
 
 export const LlmEnrichmentSchema = z.object({
   isSafe: z.boolean().describe('True nếu nội dung lành mạnh, không có yếu tố bạo lực, 18+, hoặc xúc phạm'),
@@ -31,6 +43,121 @@ export class FunFeedIngestionService {
     private readonly threadsAdapter?: ThreadsAdapter,
   ) {}
 
+  /**
+   * Thu thập các video Shorts mới xuất bản từ danh mục kênh YouTube tuyển chọn (Channel-based Ingestion).
+   *
+   * Tại sao cần phương thức này?
+   * - Quét định kỳ theo ngày các Creators chất lượng cao (BBC, TV Series, Lucy, Dan Hauer, Papa Teach Me).
+   * - Chỉ lấy các video mới trong vòng maxAgeHours (mặc định 48h).
+   * - Tiết kiệm Quota 100 lần (dùng Uploads Playlist 1 unit/kênh hoặc RSS 0 unit).
+   * - Áp dụng LLM Enrichment để đánh giá an toàn và trích xuất kiến thức tiếng Anh bổ ích.
+   */
+  async ingestFromCuratedChannels(options?: {
+    maxAgeHours?: number;
+    limitPerChannel?: number;
+    channelId?: string;
+  }): Promise<{
+    totalChannels: number;
+    fetched: number;
+    deduped: number;
+    saved: number;
+    channelReports: Record<string, { fetched: number; saved: number; status: string }>;
+  }> {
+    const maxAgeHours = options?.maxAgeHours ?? 48;
+    const limitPerChannel = options?.limitPerChannel ?? 5;
+
+    const cleanQuery = options?.channelId?.trim().toLowerCase();
+    const channelsToScan: YoutubeChannelConfig[] = cleanQuery
+      ? CURATED_YOUTUBE_CHANNELS.filter(
+          (c) =>
+            c.channelId?.toLowerCase() === cleanQuery ||
+            c.handle.toLowerCase() === cleanQuery ||
+            c.handle.toLowerCase() === `@${cleanQuery}`,
+        )
+      : CURATED_YOUTUBE_CHANNELS.filter((c) => c.isActive);
+
+    let totalFetched = 0;
+    let totalDeduped = 0;
+    let totalSaved = 0;
+    const channelReports: Record<string, { fetched: number; saved: number; status: string }> = {};
+
+    for (const channel of channelsToScan) {
+      const channelDisplayName = channel.name || channel.handle;
+      this.logger.log(`Bắt đầu Ingest kênh YouTube [${channelDisplayName}] (maxAge: ${maxAgeHours}h)...`);
+      try {
+        const { items, report } = await this.youtubeAdapter.fetchLatestFromChannelWithReport(channel, {
+          maxAgeHours,
+          limit: limitPerChannel,
+        });
+
+        totalFetched += items.length;
+        let channelSaved = 0;
+
+        for (const item of items) {
+          // 1. Dedup kiểm tra source + sourceId
+          const exists = await this.mediaModel.findOne({ source: item.source, sourceId: item.sourceId }).lean();
+          if (exists) {
+            continue;
+          }
+          totalDeduped++;
+
+          // 2. LLM Safety check & Enrich
+          try {
+            const enriched = await this.enrichItemWithLlm(item, channel.defaultTopic);
+            if (!enriched.isSafe || enriched.learningScore < 0.4) {
+              this.logger.warn(
+                `Bỏ qua video kênh [${channelDisplayName}] do không an toàn hoặc điểm thấp: ${enriched.learningScore}`,
+              );
+              continue;
+            }
+
+            // 3. Auto-publish lưu vào DB
+            await this.mediaModel.create({
+              ...item,
+              topic: enriched.topic || channel.defaultTopic,
+              level: enriched.level,
+              whyFunny: enriched.whyFunny,
+              youLearned: enriched.youLearned,
+              learningScore: enriched.learningScore,
+              status: 'published',
+              publishedAt: item.metadata?.publishedAt ? new Date(item.metadata.publishedAt) : new Date(),
+            });
+            channelSaved++;
+            totalSaved++;
+          } catch (err: any) {
+            this.logger.error(
+              `Lỗi enrich video [${item.source}:${item.sourceId}] từ kênh ${channelDisplayName}: ${err.message}`,
+            );
+          }
+        }
+
+        channelReports[channelDisplayName] = {
+          fetched: items.length,
+          saved: channelSaved,
+          status: report.status,
+        };
+      } catch (channelError: any) {
+        this.logger.error(`Lỗi quét kênh [${channelDisplayName}]: ${channelError.message}`);
+        channelReports[channelDisplayName] = {
+          fetched: 0,
+          saved: 0,
+          status: 'error',
+        };
+      }
+    }
+
+    return {
+      totalChannels: channelsToScan.length,
+      fetched: totalFetched,
+      deduped: totalDeduped,
+      saved: totalSaved,
+      channelReports,
+    };
+  }
+
+  /**
+   * Cào dữ liệu theo từ khóa đơn lẻ (Legacy Keyword Ingestion).
+   */
   async ingestSingleKeyword(
     keywordItem: KeywordItem,
     limit = 5,

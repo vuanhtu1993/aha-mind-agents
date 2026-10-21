@@ -8,6 +8,7 @@ export interface NormalizedMedia {
   thumbnailUrl?: string;
   attribution?: string;
   rating?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface SourceReport {
