@@ -1,6 +1,6 @@
 /**
  * @file cert-crawler.module.ts
- * @description NestJS Module đăng ký Controller, Producer, Processor và Queue
+ * @description NestJS Module đăng ký Controller, Producer, Processor, ExportService và Queue
  *
  * Made by Anh Tu - Share to be share
  */
@@ -11,6 +11,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { CERT_CRAWLER_QUEUE } from './cert-crawler.constants';
 import { CertCrawlerProducerService } from './cert-crawler.producer';
 import { CertCrawlerProcessor } from './cert-crawler.processor';
+import { CertExcelExportService } from './services/cert-excel-export.service';
 import { CertCrawlerController } from './cert-crawler.controller';
 import { CertQuestion, CertQuestionSchema } from '../../infra/database/schemas/cert-question.schema';
 import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
@@ -26,7 +27,11 @@ import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
     ),
   ],
   controllers: [CertCrawlerController],
-  providers: [CertCrawlerProducerService, CertCrawlerProcessor],
-  exports: [CertCrawlerProducerService],
+  providers: [
+    CertCrawlerProducerService,
+    CertCrawlerProcessor,
+    CertExcelExportService,
+  ],
+  exports: [CertCrawlerProducerService, CertExcelExportService],
 })
 export class CertCrawlerModule {}
