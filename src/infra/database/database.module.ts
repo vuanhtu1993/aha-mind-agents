@@ -13,6 +13,7 @@ import { VocabCard, VocabCardSchema } from './schemas/vocab-card.schema';
 import { VocabReviewLog, VocabReviewLogSchema } from './schemas/vocab-review-log.schema';
 import { AgentExecLog, AgentExecLogSchema } from './schemas/agent-log.schema';
 import { AgentConfig, AgentConfigSchema } from './schemas/agent-config.schema';
+import { CertQuestion, CertQuestionSchema } from './schemas/cert-question.schema';
 
 @Global()
 @Module({
@@ -57,6 +58,7 @@ import { AgentConfig, AgentConfigSchema } from './schemas/agent-config.schema';
         { name: SpeakingQuestion.name, schema: SpeakingQuestionSchema },
         { name: VocabCard.name, schema: VocabCardSchema },
         { name: VocabReviewLog.name, schema: VocabReviewLogSchema },
+        { name: CertQuestion.name, schema: CertQuestionSchema },
       ],
       AHA_TOOLS_CONNECTION,
     ),
