@@ -45,10 +45,12 @@ describe('CertCrawlerProcessor', () => {
   it('should process job, fetch reveal, and upsert question into MongoDB', async () => {
     mockedAxios.get.mockResolvedValueOnce({
       data: {
-        answer_key: 'A',
-        explanation: 'Test explanation',
-        ai_expert: 'Kiến thức cần nhớ: Test AI Expert',
-        source_url: 'https://platform.claude.com',
+        question: {
+          answer_key: 'A',
+          explanation: 'Test explanation',
+          ai_expert: 'Kiến thức cần nhớ: Test AI Expert',
+          source_url: 'https://platform.claude.com',
+        },
       },
     } as any);
 

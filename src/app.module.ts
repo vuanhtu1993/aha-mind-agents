@@ -11,6 +11,7 @@ import { StoryShadowingModule } from './plugins/story-shadowing/story-shadowing.
 import { SpeakingQuizModule } from './plugins/speaking-quiz/speaking-quiz.module';
 import { VocabReviewModule } from './plugins/vocab-review/vocab-review.module';
 import { FunFeedModule } from './plugins/fun-feed/fun-feed.module';
+import { CertCrawlerModule } from './plugins/cert-crawler/cert-crawler.module';
 import { AgentsModule } from './api/agents/agents.module';
 import { DashboardModule } from './api/dashboard/dashboard.module';
 
@@ -41,6 +42,7 @@ const getPublicPath = () => join(process.cwd(), 'public');
     SpeakingQuizModule,
     VocabReviewModule,
     FunFeedModule,
+    CertCrawlerModule,
     AgentsModule,
     DashboardModule,
   ],

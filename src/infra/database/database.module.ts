@@ -1,6 +1,12 @@
 import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import * as dns from 'dns';
+
+// Đảm bảo phân giải DNS SRV ổn định cho MongoDB Atlas trên macOS
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch {}
 
 import {
   AHA_TOOLS_CONNECTION,

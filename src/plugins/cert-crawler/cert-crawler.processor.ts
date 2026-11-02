@@ -53,8 +53,13 @@ export class CertCrawlerProcessor extends WorkerHost {
         },
         timeout: 10000,
       });
-      revealData = res.data || {};
+      revealData = res.data?.question || res.data || {};
     } catch (error: any) {
+      if (error.response?.status === 429) {
+        const msg = error.response?.data?.error || error.message;
+        this.logger.error(`⚠️ [Rate Limit 429] ${msg} (ID: ${question.id})`);
+        throw new Error(`Rate limit 429: ${msg}`);
+      }
       this.logger.warn(
         `Không thể lấy reveal cho câu hỏi ${question.id} (Cert: ${certId}): ${error.message}`,
       );
@@ -63,10 +68,9 @@ export class CertCrawlerProcessor extends WorkerHost {
     const correctAnswer =
       revealData.correct ||
       revealData.answer_key ||
-      revealData.correct_verified ||
-      '';
+      revealData.correct_verified;
 
-    const questionDoc = {
+    const questionDoc: Record<string, any> = {
       certId,
       externalId: question.id,
       questionNo: question.question_no,
@@ -79,13 +83,14 @@ export class CertCrawlerProcessor extends WorkerHost {
       optionsVi: question.options_vi,
       optionsJa: question.options_ja,
       isMulti: question.is_multi ?? false,
-      correctAnswer,
-      explanationEn: revealData.explanation,
-      aiExpertVi: revealData.ai_expert,
-      aiExpertJa: revealData.ai_expert_ja,
-      sourceUrl: revealData.source_url,
       reviewConfidence: question.review_confidence,
     };
+
+    if (correctAnswer) questionDoc.correctAnswer = correctAnswer;
+    if (revealData.explanation) questionDoc.explanationEn = revealData.explanation;
+    if (revealData.ai_expert) questionDoc.aiExpertVi = revealData.ai_expert;
+    if (revealData.ai_expert_ja) questionDoc.aiExpertJa = revealData.ai_expert_ja;
+    if (revealData.source_url) questionDoc.sourceUrl = revealData.source_url;
 
     await this.certQuestionModel.findOneAndUpdate(
       { certId, externalId: question.id },
