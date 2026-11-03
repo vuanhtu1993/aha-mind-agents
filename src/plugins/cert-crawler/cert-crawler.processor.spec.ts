@@ -25,6 +25,25 @@ describe('CertCrawlerProcessor', () => {
     get: jest.fn().mockReturnValue('mock_cookie'),
   };
 
+  const baseMockJob: any = {
+    attemptsMade: 0,
+    data: {
+      certId: 'cca-f',
+      attemptId: 5361,
+      question: {
+        id: 1142,
+        question_no: 1,
+        question_en: 'Question EN',
+        question_vi: 'Question VI',
+        options: { A: 'Opt A', B: 'Opt B' },
+        options_vi: { A: 'Lua chon A', B: 'Lua chon B' },
+        is_multi: false,
+        topic: 'D1 · Kiến trúc',
+        guide_ref: 'Tool use',
+      },
+    },
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -55,25 +74,7 @@ describe('CertCrawlerProcessor', () => {
       },
     } as any);
 
-    const mockJob: any = {
-      data: {
-        certId: 'cca-f',
-        attemptId: 5361,
-        question: {
-          id: 1142,
-          question_no: 1,
-          question_en: 'Question EN',
-          question_vi: 'Question VI',
-          options: { A: 'Opt A', B: 'Opt B' },
-          options_vi: { A: 'Lua chon A', B: 'Lua chon B' },
-          is_multi: false,
-          topic: 'D1 · Kiến trúc',
-          guide_ref: 'Tool use',
-        },
-      },
-    };
-
-    await processor.process(mockJob);
+    await processor.process(baseMockJob);
 
     expect(mockedAxios.get).toHaveBeenCalledWith(
       expect.stringContaining('/api/cert/attempts/5361/reveal?q=1142&detail=1'),
@@ -88,6 +89,48 @@ describe('CertCrawlerProcessor', () => {
           externalId: 1142,
           correctAnswer: 'A',
           aiExpertVi: 'Kiến thức cần nhớ: Test AI Expert',
+        }),
+      },
+      { upsert: true, new: true },
+    );
+  });
+
+  it('should upsert base question and rethrow error on HTTP 429 so BullMQ retries', async () => {
+    mockedAxios.get.mockRejectedValueOnce({
+      response: {
+        status: 429,
+        data: { error: 'Too many requests' },
+      },
+      message: 'Request failed with status code 429',
+    });
+
+    await expect(processor.process(baseMockJob)).rejects.toThrow(/Rate limit 429/);
+
+    expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { certId: 'cca-f', externalId: 1142 },
+      {
+        $set: expect.objectContaining({
+          certId: 'cca-f',
+          externalId: 1142,
+          questionEn: 'Question EN',
+        }),
+      },
+      { upsert: true, new: true },
+    );
+  });
+
+  it('should upsert base question and rethrow error on network timeout or 5xx error so BullMQ retries', async () => {
+    mockedAxios.get.mockRejectedValueOnce(new Error('timeout of 10000ms exceeded'));
+
+    await expect(processor.process(baseMockJob)).rejects.toThrow(/timeout of 10000ms exceeded/);
+
+    expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { certId: 'cca-f', externalId: 1142 },
+      {
+        $set: expect.objectContaining({
+          certId: 'cca-f',
+          externalId: 1142,
+          questionEn: 'Question EN',
         }),
       },
       { upsert: true, new: true },

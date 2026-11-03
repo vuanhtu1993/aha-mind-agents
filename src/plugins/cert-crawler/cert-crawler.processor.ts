@@ -17,12 +17,15 @@ import {
   HOCCUNGSUSHI_BASE_URL,
 } from './cert-crawler.constants';
 import { CrawlQuestionJobData, RevealResponse } from './interfaces/cert-crawler.interface';
-import { CertQuestion, CertQuestionDocument } from '../../infra/database/schemas/cert-question.schema';
+import {
+  CertQuestion,
+  CertQuestionDocument,
+} from '../../infra/database/schemas/cert-question.schema';
 import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
 
 @Processor(CERT_CRAWLER_QUEUE, {
   limiter: {
-    max: 5,
+    max: 3,
     duration: 1000,
   },
 })
@@ -41,6 +44,22 @@ export class CertCrawlerProcessor extends WorkerHost {
     const { certId, attemptId, question } = job.data;
     const cookie = this.configService.get<string>('HOCCUNGSUSHI_COOKIE');
 
+    const questionDoc: Record<string, any> = {
+      certId,
+      externalId: question.id,
+      questionNo: question.question_no,
+      topic: question.topic,
+      guideRef: question.guide_ref,
+      questionEn: question.question_en,
+      questionVi: question.question_vi,
+      questionJa: question.question_ja,
+      optionsEn: question.options,
+      optionsVi: question.options_vi,
+      optionsJa: question.options_ja,
+      isMulti: question.is_multi ?? false,
+      reviewConfidence: question.review_confidence,
+    };
+
     const revealUrl = `${HOCCUNGSUSHI_BASE_URL}/api/cert/attempts/${attemptId}/reveal?q=${question.id}&detail=1`;
 
     let revealData: RevealResponse = {};
@@ -55,14 +74,28 @@ export class CertCrawlerProcessor extends WorkerHost {
       });
       revealData = res.data?.row || res.data?.question || res.data || {};
     } catch (error: any) {
-      if (error.response?.status === 429) {
-        const msg = error.response?.data?.error || error.message;
-        this.logger.error(`⚠️ [Rate Limit 429] ${msg} (ID: ${question.id})`);
+      // Bảo toàn đề bài song ngữ vào DB trước khi ném lỗi để BullMQ retry phần reveal
+      await this.certQuestionModel.findOneAndUpdate(
+        { certId, externalId: question.id },
+        { $set: questionDoc },
+        { upsert: true, new: true },
+      );
+
+      const status = error.response?.status;
+      const msg = error.response?.data?.error || error.message;
+      const attemptNum = (job.attemptsMade ?? 0) + 1;
+
+      if (status === 429) {
+        this.logger.error(
+          `⚠️ [Rate Limit 429] ${msg} (ID: ${question.id}, Attempt: ${attemptNum})`,
+        );
         throw new Error(`Rate limit 429: ${msg}`);
       }
+
       this.logger.warn(
-        `Không thể lấy reveal cho câu hỏi ${question.id} (Cert: ${certId}): ${error.message}`,
+        `⚠️ Lỗi lấy reveal cho câu hỏi ${question.id} (Cert: ${certId}, Status: ${status || 'NETWORK'}, Attempt: ${attemptNum}): ${msg}`,
       );
+      throw new Error(`Reveal fetch failed (${status || 'NETWORK'}): ${msg}`);
     }
 
     const correctAnswer =
@@ -70,22 +103,7 @@ export class CertCrawlerProcessor extends WorkerHost {
       revealData.answer_key ||
       revealData.correct_verified;
 
-    const questionDoc: Record<string, any> = {
-      certId,
-      externalId: question.id,
-      questionNo: question.question_no,
-      topic: question.topic,
-      guideRef: revealData.guide_ref || question.guide_ref,
-      questionEn: question.question_en,
-      questionVi: question.question_vi,
-      questionJa: question.question_ja,
-      optionsEn: question.options,
-      optionsVi: question.options_vi,
-      optionsJa: question.options_ja,
-      isMulti: question.is_multi ?? false,
-      reviewConfidence: question.review_confidence,
-    };
-
+    if (revealData.guide_ref) questionDoc.guideRef = revealData.guide_ref;
     if (correctAnswer) questionDoc.correctAnswer = correctAnswer;
     if (revealData.explanation) questionDoc.explanationEn = revealData.explanation;
     if (revealData.ai_expert) questionDoc.aiExpertVi = revealData.ai_expert;

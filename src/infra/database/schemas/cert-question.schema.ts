@@ -48,7 +48,7 @@ export class CertQuestion {
   @Prop({ default: false })
   isMulti: boolean;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   correctAnswer: string;
 
   @Prop()

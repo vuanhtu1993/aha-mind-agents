@@ -35,6 +35,9 @@ export const EnvSchema = z.object({
   GIPHY_API_KEY: z.string().optional(),
   YOUTUBE_DATA_API_KEY: z.string().optional(),
 
+  // Cookie xác thực nền tảng hoccungsushi.com cho Cert Crawler Agent
+  HOCCUNGSUSHI_COOKIE: z.string().optional(),
+
   // Bảo mật Dashboard & Internal Webhooks
   CRON_SECRET: z.string().default('aha-mind-secret-2026'),
 }).passthrough();

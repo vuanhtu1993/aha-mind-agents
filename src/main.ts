@@ -36,6 +36,7 @@ async function bootstrap() {
     .addTag('Agents', 'Định tuyến và thực thi Agent Pipelines')
     .addTag('Status', 'Server-Sent Events (SSE) theo dõi tiến độ Job')
     .addTag('Dashboard', 'Thống kê & Giám sát vận hành Agent')
+    .addTag('Cert Crawler', 'Thu thập và kết xuất ngân hàng câu hỏi chứng chỉ')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

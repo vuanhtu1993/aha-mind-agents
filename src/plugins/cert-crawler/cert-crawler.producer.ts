@@ -1,6 +1,6 @@
 /**
  * @file cert-crawler.producer.ts
- * @description Producer Service lấy danh sách câu hỏi theo batch và đẩy vào BullMQ
+ * @description Producer Service lấy danh sách câu hỏi theo batch (Delta Sync) và đẩy vào BullMQ
  *
  * Made by Anh Tu - Share to be share
  */
@@ -8,14 +8,25 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { Queue } from 'bullmq';
 import axios from 'axios';
 import {
   CERT_CRAWLER_QUEUE,
   CRAWL_QUESTION_JOB,
   HOCCUNGSUSHI_BASE_URL,
+  CERT_BATCH_SIZE,
+  CERT_BATCH_DELAY_MS,
+  CERT_JOB_ATTEMPTS,
+  CERT_JOB_BACKOFF_DELAY_MS,
 } from './cert-crawler.constants';
 import { RawQuestionItem, CrawlQuestionJobData } from './interfaces/cert-crawler.interface';
+import {
+  CertQuestion,
+  CertQuestionDocument,
+} from '../../infra/database/schemas/cert-question.schema';
+import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
 
 @Injectable()
 export class CertCrawlerProducerService {
@@ -24,6 +35,8 @@ export class CertCrawlerProducerService {
   constructor(
     private readonly configService: ConfigService,
     @InjectQueue(CERT_CRAWLER_QUEUE) private readonly crawlerQueue: Queue,
+    @InjectModel(CertQuestion.name, AHA_TOOLS_CONNECTION)
+    private readonly certQuestionModel: Model<CertQuestionDocument>,
   ) {}
 
   private getAuthHeaders() {
@@ -36,6 +49,22 @@ export class CertCrawlerProducerService {
       'User-Agent':
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     };
+  }
+
+  /**
+   * Lấy tập hợp các externalId đã hoàn tất (có đủ cả correctAnswer và aiExpertVi) trong DB
+   */
+  private async getCompletedExternalIds(certId: string): Promise<Set<number>> {
+    const completedDocs = await this.certQuestionModel
+      .find({
+        certId,
+        correctAnswer: { $exists: true, $nin: ['', null] },
+        aiExpertVi: { $exists: true, $nin: ['', null] },
+      })
+      .select('externalId')
+      .lean();
+
+    return new Set(completedDocs.map((d) => d.externalId));
   }
 
   /**
@@ -69,7 +98,7 @@ export class CertCrawlerProducerService {
       { headers },
     );
 
-    const questionIds =
+    const questionIds: number[] =
       detailRes.data?.attempt?.question_ids ||
       detailRes.data?.refs?.map((r: { id: number }) => r.id) ||
       [];
@@ -82,27 +111,52 @@ export class CertCrawlerProducerService {
   }
 
   /**
-   * Kích hoạt cào toàn bộ câu hỏi của certId
+   * Kích hoạt đồng bộ câu hỏi của certId (hỗ trợ Delta Sync để resume khi lỗi)
    */
-  async triggerSync(certId: string) {
-    this.logger.log(`Bắt đầu đồng bộ chứng chỉ: ${certId}`);
+  async triggerSync(certId: string, force = false) {
+    this.logger.log(`Bắt đầu đồng bộ chứng chỉ: ${certId} (force=${force})`);
     const { attemptId, questionIds } = await this.getOrCreateAttempt(certId);
-    this.logger.log(`Tìm thấy ${questionIds.length} câu hỏi. Attempt ID: ${attemptId}`);
+
+    let pendingIds = questionIds;
+    let skippedQuestions = 0;
+
+    if (!force) {
+      const completedSet = await this.getCompletedExternalIds(certId);
+      pendingIds = questionIds.filter((id) => !completedSet.has(id));
+      skippedQuestions = questionIds.length - pendingIds.length;
+    }
+
+    this.logger.log(
+      `[${certId}] Tổng số: ${questionIds.length} câu | Đã hoàn tất (bỏ qua): ${skippedQuestions} | Cần đồng bộ: ${pendingIds.length} (Attempt ID: ${attemptId})`,
+    );
+
+    if (pendingIds.length === 0) {
+      return {
+        certId,
+        attemptId,
+        totalQuestions: questionIds.length,
+        skippedQuestions,
+        queuedJobs: 0,
+      };
+    }
 
     const headers = this.getAuthHeaders();
-    const batchSize = 20;
     const allQuestions: RawQuestionItem[] = [];
 
-    // Chia thành các batch tối đa 20 câu
-    for (let i = 0; i < questionIds.length; i += batchSize) {
-      const batchIds = questionIds.slice(i, i + batchSize).join(',');
+    // Chia thành các batch tối đa 20 câu và nghỉ nhẹ giữa các batch để tránh spike request
+    for (let i = 0; i < pendingIds.length; i += CERT_BATCH_SIZE) {
+      const batchIds = pendingIds.slice(i, i + CERT_BATCH_SIZE).join(',');
       const batchUrl = `${HOCCUNGSUSHI_BASE_URL}/api/cert/${certId}?ids=${batchIds}`;
       const batchRes = await axios.get(batchUrl, { headers });
       const questions: RawQuestionItem[] = batchRes.data?.questions || [];
       allQuestions.push(...questions);
+
+      if (i + CERT_BATCH_SIZE < pendingIds.length && process.env.NODE_ENV !== 'test') {
+        await new Promise((resolve) => setTimeout(resolve, CERT_BATCH_DELAY_MS));
+      }
     }
 
-    // Tạo các atomic jobs cho BullMQ
+    // Tạo các atomic jobs cho BullMQ với jobId tất định để chống trùng lặp trên hàng đợi
     const jobs = allQuestions.map((q) => ({
       name: CRAWL_QUESTION_JOB,
       data: {
@@ -111,9 +165,11 @@ export class CertCrawlerProducerService {
         question: q,
       } as CrawlQuestionJobData,
       opts: {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 1000 },
+        jobId: `${certId}-${q.id}`,
+        attempts: CERT_JOB_ATTEMPTS,
+        backoff: { type: 'exponential', delay: CERT_JOB_BACKOFF_DELAY_MS },
         removeOnComplete: true,
+        removeOnFail: false,
       },
     }));
 
@@ -124,6 +180,7 @@ export class CertCrawlerProducerService {
       certId,
       attemptId,
       totalQuestions: questionIds.length,
+      skippedQuestions,
       queuedJobs: jobs.length,
     };
   }

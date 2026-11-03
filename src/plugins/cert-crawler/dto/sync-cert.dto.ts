@@ -5,10 +5,24 @@
  * Made by Anh Tu - Share to be share
  */
 
-import { IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class SyncCertDto {
+  @ApiProperty({
+    description: 'ID của chứng chỉ cần đồng bộ (ví dụ: cca-f, ccao-f, ccar-p)',
+    example: 'ccao-f',
+  })
   @IsString()
   @IsNotEmpty()
   certId: string;
+
+  @ApiPropertyOptional({
+    description: 'Bắt buộc cào lại toàn bộ câu hỏi kể cả các câu đã hoàn tất trong DB',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
 }

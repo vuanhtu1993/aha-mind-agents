@@ -46,3 +46,6 @@ coverage
 
 # Superpowers artifacts
 .superpowers/
+
+# Generated exports
+exports/*.xlsx
