@@ -15,7 +15,7 @@ import { SyncCertDto } from './dto/sync-cert.dto';
 import { CertQuestion, CertQuestionDocument } from '../../infra/database/schemas/cert-question.schema';
 import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
 
-@Controller('api/crawler/cert')
+@Controller('crawler/cert')
 export class CertCrawlerController {
   constructor(
     private readonly producerService: CertCrawlerProducerService,

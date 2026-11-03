@@ -5,7 +5,7 @@ import * as dns from 'dns';
 
 // Đảm bảo phân giải DNS SRV ổn định cho MongoDB Atlas trên macOS
 try {
-  dns.setServers(['8.8.8.8', '1.1.1.1']);
+  dns.setServers(['1.1.1.1', '8.8.4.4', '9.9.9.9']);
 } catch {}
 
 import {

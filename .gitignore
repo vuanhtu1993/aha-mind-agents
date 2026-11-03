@@ -43,3 +43,6 @@ coverage
 
 # openlore analysis artifacts
 .openlore/
+
+# Superpowers artifacts
+.superpowers/

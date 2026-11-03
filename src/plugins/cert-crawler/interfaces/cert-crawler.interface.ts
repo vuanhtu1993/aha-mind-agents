@@ -34,4 +34,6 @@ export interface RevealResponse {
   ai_expert?: string;
   ai_expert_ja?: string;
   source_url?: string;
+  source_ref?: string;
+  guide_ref?: string;
 }

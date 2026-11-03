@@ -47,22 +47,22 @@
 - Consumes: `@InjectModel(CertQuestion.name, AHA_TOOLS_CONNECTION)`, `exceljs`
 - Produces: `exportToExcel(certId: string): Promise<{ buffer: Buffer; fileName: string; totalQuestions: number }>`
 
-- [ ] **Step 1: Cài đặt dependency `exceljs`**
+- [x] **Step 1: Cài đặt dependency `exceljs`**
   ```bash
   pnpm add exceljs
   ```
 
-- [ ] **Step 2: Viết test thất bại (RED) cho `CertExcelExportService`**
+- [x] **Step 2: Viết test thất bại (RED) cho `CertExcelExportService`**
   Tạo `src/plugins/cert-crawler/services/cert-excel-export.service.spec.ts`:
   * Mock `CertQuestionModel.find({ certId }).sort({ questionNo: 1 })`.
   * Kiểm tra hàm `exportToExcel('cca-f')` trả về Buffer hợp lệ (Buffer.isBuffer(result.buffer) === true) và có tên file `{certId}-questions.xlsx`.
 
-- [ ] **Step 3: Chạy test để xác nhận RED**
+- [x] **Step 3: Chạy test để xác nhận RED**
   ```bash
   npm test src/plugins/cert-crawler/services/cert-excel-export.service.spec.ts
   ```
 
-- [ ] **Step 4: Hiện thực `CertExcelExportService` (GREEN)**
+- [x] **Step 4: Hiện thực `CertExcelExportService` (GREEN)**
   Tạo `src/plugins/cert-crawler/services/cert-excel-export.service.ts`:
   * Khởi tạo `ExcelJS.Workbook`.
   * Thêm worksheet tên `certId.toUpperCase()`.
@@ -71,12 +71,12 @@
   * Điền từng dòng dữ liệu và bật thuộc tính `alignment: { wrapText: true, vertical: 'top' }`.
   * Xuất ra buffer bằng `workbook.xlsx.writeBuffer()`.
 
-- [ ] **Step 5: Chạy test để xác nhận GREEN**
+- [x] **Step 5: Chạy test để xác nhận GREEN**
   ```bash
   npm test src/plugins/cert-crawler/services/cert-excel-export.service.spec.ts
   ```
 
-- [ ] **Step 6: Commit Task 1**
+- [x] **Step 6: Commit Task 1**
   ```bash
   git add package.json pnpm-lock.yaml src/plugins/cert-crawler/services/
   git commit -m "feat(cert-crawler): implement CertExcelExportService with styled exceljs workbook"
@@ -94,11 +94,11 @@
 **Interfaces:**
 - Produces: `GET /api/crawler/cert/export?certId=cca-f`
 
-- [ ] **Step 1: Viết test cập nhật cho Controller (RED)**
+- [x] **Step 1: Viết test cập nhật cho Controller (RED)**
   * Bổ sung test case gọi `controller.export('cca-f', mockRes)`.
   * Kiểm tra thiết lập các Header `Content-Type` và `Content-Disposition`.
 
-- [ ] **Step 2: Hiện thực endpoint trong `CertCrawlerController` (GREEN)**
+- [x] **Step 2: Hiện thực endpoint trong `CertCrawlerController` (GREEN)**
   ```typescript
   @Get('export')
   async export(
@@ -118,15 +118,15 @@
   }
   ```
 
-- [ ] **Step 3: Đăng ký `CertExcelExportService` vào `CertCrawlerModule`**
+- [x] **Step 3: Đăng ký `CertExcelExportService` vào `CertCrawlerModule`**
   Thêm vào `providers` và `exports`.
 
-- [ ] **Step 4: Chạy test để xác nhận GREEN**
+- [x] **Step 4: Chạy test để xác nhận GREEN**
   ```bash
   npm test src/plugins/cert-crawler/cert-crawler.controller.spec.ts
   ```
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
   ```bash
   git add src/plugins/cert-crawler/
   git commit -m "feat(cert-crawler): add GET /api/crawler/cert/export endpoint"
@@ -136,19 +136,19 @@
 
 ### Task 3: Nghiệm thu Thực tế & Xuất file mẫu cho 169 câu CCAF
 
-- [ ] **Step 1: Chạy script xuất file thực tế `cca-f-questions.xlsx`**
+- [x] **Step 1: Chạy script xuất file thực tế `cca-f-questions.xlsx`**
   Tạo thư mục `exports/` và xuất file mẫu từ 169 câu hỏi CCAF đang có trong MongoDB.
 
-- [ ] **Step 2: Kiểm tra dung lượng và tính toàn vẹn của file XLSX**
+- [x] **Step 2: Kiểm tra dung lượng và tính toàn vẹn của file XLSX**
   Xác nhận file mở được, đúng kích thước (~150KB - 300KB), có đủ các sheet và dòng.
 
-- [ ] **Step 3: Chạy toàn bộ test suite dự án**
+- [x] **Step 3: Chạy toàn bộ test suite dự án**
   ```bash
   npm test
   npm run typecheck
   ```
 
-- [ ] **Step 4: Commit và hoàn tất**
+- [x] **Step 4: Commit và hoàn tất**
   ```bash
   git add docs/superpowers/plans/2026-11-02-export-cert-question-xlsx.md
   git commit -m "docs: add export cert question xlsx implementation plan"

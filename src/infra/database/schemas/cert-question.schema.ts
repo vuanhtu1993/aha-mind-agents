@@ -64,6 +64,9 @@ export class CertQuestion {
   sourceUrl?: string;
 
   @Prop()
+  sourceRef?: string;
+
+  @Prop()
   reviewConfidence?: string;
 }
 

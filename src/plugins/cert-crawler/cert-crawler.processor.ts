@@ -53,7 +53,7 @@ export class CertCrawlerProcessor extends WorkerHost {
         },
         timeout: 10000,
       });
-      revealData = res.data?.question || res.data || {};
+      revealData = res.data?.row || res.data?.question || res.data || {};
     } catch (error: any) {
       if (error.response?.status === 429) {
         const msg = error.response?.data?.error || error.message;
@@ -75,7 +75,7 @@ export class CertCrawlerProcessor extends WorkerHost {
       externalId: question.id,
       questionNo: question.question_no,
       topic: question.topic,
-      guideRef: question.guide_ref,
+      guideRef: revealData.guide_ref || question.guide_ref,
       questionEn: question.question_en,
       questionVi: question.question_vi,
       questionJa: question.question_ja,
@@ -91,6 +91,7 @@ export class CertCrawlerProcessor extends WorkerHost {
     if (revealData.ai_expert) questionDoc.aiExpertVi = revealData.ai_expert;
     if (revealData.ai_expert_ja) questionDoc.aiExpertJa = revealData.ai_expert_ja;
     if (revealData.source_url) questionDoc.sourceUrl = revealData.source_url;
+    if (revealData.source_ref) questionDoc.sourceRef = revealData.source_ref;
 
     await this.certQuestionModel.findOneAndUpdate(
       { certId, externalId: question.id },

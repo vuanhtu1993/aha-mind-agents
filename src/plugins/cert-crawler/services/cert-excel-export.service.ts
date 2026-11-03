@@ -99,6 +99,8 @@ export class CertExcelExportService {
       const optionsEn = (q.optionsEn || {}) as Record<string, string>;
       const optionsVi = (q.optionsVi || {}) as Record<string, string>;
 
+      const reference = [q.guideRef, q.sourceUrl].filter(Boolean).join('\n') || q.sourceUrl || q.guideRef || '';
+
       const row = worksheet.addRow({
         questionNo: q.questionNo || '',
         externalId: q.externalId,
@@ -116,7 +118,7 @@ export class CertExcelExportService {
         correctAnswer: q.correctAnswer || '',
         explanationEn: q.explanationEn || '',
         aiExpertVi: q.aiExpertVi || '',
-        sourceUrl: q.sourceUrl || '',
+        sourceUrl: reference,
       });
 
       row.eachCell((cell, colNumber) => {
