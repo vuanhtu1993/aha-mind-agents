@@ -1,22 +1,24 @@
 /**
  * @file cert-crawler.processor.ts
- * @description Consumer Processor lấy đáp án chi tiết và upsert vào MongoDB
+ * @description Consumer Processor lấy đáp án chi tiết và upsert vào MongoDB (có tích hợp Circuit Breaker)
  *
  * Made by Anh Tu - Share to be share
  */
 
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import axios from 'axios';
 import {
   CERT_CRAWLER_QUEUE,
   HOCCUNGSUSHI_BASE_URL,
+  DEFAULT_CRAWLER_SOURCE,
 } from './cert-crawler.constants';
 import { CrawlQuestionJobData, RevealResponse } from './interfaces/cert-crawler.interface';
+import { CertCrawlerCooldownService } from './services/cert-crawler-cooldown.service';
 import {
   CertQuestion,
   CertQuestionDocument,
@@ -36,6 +38,9 @@ export class CertCrawlerProcessor extends WorkerHost {
     private readonly configService: ConfigService,
     @InjectModel(CertQuestion.name, AHA_TOOLS_CONNECTION)
     private readonly certQuestionModel: Model<CertQuestionDocument>,
+    @InjectQueue(CERT_CRAWLER_QUEUE)
+    private readonly crawlerQueue: Queue,
+    private readonly cooldownService: CertCrawlerCooldownService,
   ) {
     super();
   }
@@ -74,7 +79,7 @@ export class CertCrawlerProcessor extends WorkerHost {
       });
       revealData = res.data?.row || res.data?.question || res.data || {};
     } catch (error: any) {
-      // Bảo toàn đề bài song ngữ vào DB trước khi ném lỗi để BullMQ retry phần reveal
+      // Bảo toàn đề bài song ngữ vào DB trước
       await this.certQuestionModel.findOneAndUpdate(
         { certId, externalId: question.id },
         { $set: questionDoc },
@@ -82,13 +87,29 @@ export class CertCrawlerProcessor extends WorkerHost {
       );
 
       const status = error.response?.status;
-      const msg = error.response?.data?.error || error.message;
+      const msg: string = error.response?.data?.error || error.message || '';
       const attemptNum = (job.attemptsMade ?? 0) + 1;
 
       if (status === 429) {
         this.logger.error(
           `⚠️ [Rate Limit 429] ${msg} (ID: ${question.id}, Attempt: ${attemptNum})`,
         );
+
+        // KÍCH HOẠT CẦU DAO (CIRCUIT BREAKER): Nếu chạm trần 200 câu/giờ
+        const isQuotaCeiling =
+          msg.includes('trần 200') ||
+          msg.includes('quá nhiều trong một giờ') ||
+          msg.toLowerCase().includes('quota') ||
+          msg.toLowerCase().includes('too many requests');
+
+        if (isQuotaCeiling) {
+          this.logger.error(
+            `🛑 [Circuit Breaker] Đã chạm trần hạn ngạch của [${DEFAULT_CRAWLER_SOURCE}]. Tiến hành xả hàng đợi và giãn cách 60 phút!`,
+          );
+          await this.cooldownService.setCooldown(DEFAULT_CRAWLER_SOURCE);
+          await this.crawlerQueue.drain(true);
+        }
+
         throw new Error(`Rate limit 429: ${msg}`);
       }
 

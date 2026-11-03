@@ -25,4 +25,13 @@ export class SyncCertDto {
   @IsOptional()
   @IsBoolean()
   force?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Bắt buộc mở khóa Cooldown trước khi cào (khi đã đổi cookie mới)',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  resetCooldown?: boolean;
 }

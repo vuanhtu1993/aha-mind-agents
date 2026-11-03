@@ -7,11 +7,13 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import { getQueueToken } from '@nestjs/bullmq';
 import { getModelToken } from '@nestjs/mongoose';
 import axios from 'axios';
 import { CertCrawlerProducerService } from './cert-crawler.producer';
-import { CERT_CRAWLER_QUEUE } from './cert-crawler.constants';
+import { CertCrawlerCooldownService } from './services/cert-crawler-cooldown.service';
+import { CERT_CRAWLER_QUEUE, DEFAULT_CRAWLER_SOURCE } from './cert-crawler.constants';
 import { CertQuestion } from '../../infra/database/schemas/cert-question.schema';
 import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
 
@@ -34,10 +36,26 @@ describe('CertCrawlerProducerService', () => {
   const mockModel = {
     find: jest.fn().mockReturnValue({ select: mockSelect }),
   };
+  const mockCooldownService = {
+    getCooldownStatus: jest.fn().mockResolvedValue({
+      isLocked: false,
+      remainingMinutes: 0,
+      lockedUntil: null,
+      source: DEFAULT_CRAWLER_SOURCE,
+    }),
+    resetCooldown: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     mockLean.mockResolvedValue([]);
+    mockCooldownService.getCooldownStatus.mockResolvedValue({
+      isLocked: false,
+      remainingMinutes: 0,
+      lockedUntil: null,
+      source: DEFAULT_CRAWLER_SOURCE,
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CertCrawlerProducerService,
@@ -47,6 +65,7 @@ describe('CertCrawlerProducerService', () => {
           provide: getModelToken(CertQuestion.name, AHA_TOOLS_CONNECTION),
           useValue: mockModel,
         },
+        { provide: CertCrawlerCooldownService, useValue: mockCooldownService },
       ],
     }).compile();
 
@@ -55,6 +74,55 @@ describe('CertCrawlerProducerService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('should throw HttpException 429 when source is currently in cooldown', async () => {
+    mockCooldownService.getCooldownStatus.mockResolvedValueOnce({
+      isLocked: true,
+      remainingMinutes: 45,
+      lockedUntil: new Date(),
+      source: DEFAULT_CRAWLER_SOURCE,
+    });
+
+    await expect(service.triggerSync('cca-f')).rejects.toThrow(HttpException);
+
+    expect(mockCooldownService.getCooldownStatus).toHaveBeenCalledWith(DEFAULT_CRAWLER_SOURCE);
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+  });
+
+  it('should reset cooldown and proceed when resetCooldown = true', async () => {
+    mockCooldownService.getCooldownStatus.mockResolvedValue({
+      isLocked: false,
+      remainingMinutes: 0,
+      lockedUntil: null,
+      source: DEFAULT_CRAWLER_SOURCE,
+    });
+
+    mockLean.mockResolvedValueOnce([]);
+    mockedAxios.get.mockImplementation((url: string) => {
+      if (url.includes('/api/cert/attempts?cert_id=')) {
+        return Promise.resolve({ data: { attempt: { id: 5361 } } } as any);
+      }
+      if (url.includes('/api/cert/attempts/5361')) {
+        return Promise.resolve({
+          data: {
+            attempt: { id: 5361, question_ids: [1142] },
+          },
+        } as any);
+      }
+      if (url.includes('/api/cert/cca-f?ids=')) {
+        return Promise.resolve({
+          data: {
+            questions: [{ id: 1142, question_no: 1, topic: 'T1' }],
+          },
+        } as any);
+      }
+      return Promise.reject(new Error('Unexpected URL: ' + url));
+    });
+
+    await service.triggerSync('cca-f', false, true);
+
+    expect(mockCooldownService.resetCooldown).toHaveBeenCalledWith(DEFAULT_CRAWLER_SOURCE);
   });
 
   it('should skip already completed questions during delta sync (force = false)', async () => {

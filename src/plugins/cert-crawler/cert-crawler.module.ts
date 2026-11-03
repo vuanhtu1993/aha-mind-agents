@@ -1,6 +1,6 @@
 /**
  * @file cert-crawler.module.ts
- * @description NestJS Module đăng ký Controller, Producer, Processor, ExportService và Queue
+ * @description NestJS Module đăng ký Controller, Producer, Processor, ExportService, CooldownService và Queue
  *
  * Made by Anh Tu - Share to be share
  */
@@ -12,8 +12,12 @@ import { CERT_CRAWLER_QUEUE } from './cert-crawler.constants';
 import { CertCrawlerProducerService } from './cert-crawler.producer';
 import { CertCrawlerProcessor } from './cert-crawler.processor';
 import { CertExcelExportService } from './services/cert-excel-export.service';
+import { CertCrawlerCooldownService } from './services/cert-crawler-cooldown.service';
 import { CertCrawlerController } from './cert-crawler.controller';
-import { CertQuestion, CertQuestionSchema } from '../../infra/database/schemas/cert-question.schema';
+import {
+  CertQuestion,
+  CertQuestionSchema,
+} from '../../infra/database/schemas/cert-question.schema';
 import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
 
 @Module({
@@ -31,7 +35,12 @@ import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
     CertCrawlerProducerService,
     CertCrawlerProcessor,
     CertExcelExportService,
+    CertCrawlerCooldownService,
   ],
-  exports: [CertCrawlerProducerService, CertExcelExportService],
+  exports: [
+    CertCrawlerProducerService,
+    CertExcelExportService,
+    CertCrawlerCooldownService,
+  ],
 })
-export class CertCrawlerModule {}
+export class CertCrawlerModule { }

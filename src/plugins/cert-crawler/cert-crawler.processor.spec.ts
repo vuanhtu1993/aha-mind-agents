@@ -8,10 +8,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { getModelToken } from '@nestjs/mongoose';
+import { getQueueToken } from '@nestjs/bullmq';
 import axios from 'axios';
 import { CertCrawlerProcessor } from './cert-crawler.processor';
+import { CertCrawlerCooldownService } from './services/cert-crawler-cooldown.service';
 import { CertQuestion } from '../../infra/database/schemas/cert-question.schema';
 import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
+import { CERT_CRAWLER_QUEUE, DEFAULT_CRAWLER_SOURCE } from './cert-crawler.constants';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -23,6 +26,12 @@ describe('CertCrawlerProcessor', () => {
   };
   const mockConfig = {
     get: jest.fn().mockReturnValue('mock_cookie'),
+  };
+  const mockCooldownService = {
+    setCooldown: jest.fn().mockResolvedValue(undefined),
+  };
+  const mockQueue = {
+    drain: jest.fn().mockResolvedValue(undefined),
   };
 
   const baseMockJob: any = {
@@ -51,6 +60,8 @@ describe('CertCrawlerProcessor', () => {
         CertCrawlerProcessor,
         { provide: ConfigService, useValue: mockConfig },
         { provide: getModelToken(CertQuestion.name, AHA_TOOLS_CONNECTION), useValue: mockModel },
+        { provide: getQueueToken(CERT_CRAWLER_QUEUE), useValue: mockQueue },
+        { provide: CertCrawlerCooldownService, useValue: mockCooldownService },
       ],
     }).compile();
 
@@ -95,7 +106,33 @@ describe('CertCrawlerProcessor', () => {
     );
   });
 
-  it('should upsert base question and rethrow error on HTTP 429 so BullMQ retries', async () => {
+  it('should trigger circuit breaker, drain queue, and set cooldown when HTTP 429 indicates hourly quota ceiling', async () => {
+    mockedAxios.get.mockRejectedValueOnce({
+      response: {
+        status: 429,
+        data: { error: 'Bạn đã xem quá nhiều trong một giờ (trần 200). Thử lại sau ít phút.' },
+      },
+      message: 'Request failed with status code 429',
+    });
+
+    await expect(processor.process(baseMockJob)).rejects.toThrow(/Rate limit 429/);
+
+    expect(mockCooldownService.setCooldown).toHaveBeenCalledWith(DEFAULT_CRAWLER_SOURCE);
+    expect(mockQueue.drain).toHaveBeenCalledWith(true);
+    expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { certId: 'cca-f', externalId: 1142 },
+      {
+        $set: expect.objectContaining({
+          certId: 'cca-f',
+          externalId: 1142,
+          questionEn: 'Question EN',
+        }),
+      },
+      { upsert: true, new: true },
+    );
+  });
+
+  it('should upsert base question and rethrow error on standard HTTP 429', async () => {
     mockedAxios.get.mockRejectedValueOnce({
       response: {
         status: 429,

@@ -5,7 +5,13 @@
  * Made by Anh Tu - Share to be share
  */
 
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { InjectModel } from '@nestjs/mongoose';
@@ -16,12 +22,14 @@ import {
   CERT_CRAWLER_QUEUE,
   CRAWL_QUESTION_JOB,
   HOCCUNGSUSHI_BASE_URL,
+  DEFAULT_CRAWLER_SOURCE,
   CERT_BATCH_SIZE,
   CERT_BATCH_DELAY_MS,
   CERT_JOB_ATTEMPTS,
   CERT_JOB_BACKOFF_DELAY_MS,
 } from './cert-crawler.constants';
 import { RawQuestionItem, CrawlQuestionJobData } from './interfaces/cert-crawler.interface';
+import { CertCrawlerCooldownService } from './services/cert-crawler-cooldown.service';
 import {
   CertQuestion,
   CertQuestionDocument,
@@ -37,6 +45,7 @@ export class CertCrawlerProducerService {
     @InjectQueue(CERT_CRAWLER_QUEUE) private readonly crawlerQueue: Queue,
     @InjectModel(CertQuestion.name, AHA_TOOLS_CONNECTION)
     private readonly certQuestionModel: Model<CertQuestionDocument>,
+    private readonly cooldownService: CertCrawlerCooldownService,
   ) {}
 
   private getAuthHeaders() {
@@ -111,9 +120,32 @@ export class CertCrawlerProducerService {
   }
 
   /**
-   * Kích hoạt đồng bộ câu hỏi của certId (hỗ trợ Delta Sync để resume khi lỗi)
+   * Kích hoạt đồng bộ câu hỏi của certId (hỗ trợ Delta Sync & Kiểm tra Cooldown)
    */
-  async triggerSync(certId: string, force = false) {
+  async triggerSync(certId: string, force = false, resetCooldown = false) {
+    // 1. Kiểm tra & Xử lý cờ Cooldown của nguồn
+    if (resetCooldown) {
+      await this.cooldownService.resetCooldown(DEFAULT_CRAWLER_SOURCE);
+    }
+
+    const cooldown = await this.cooldownService.getCooldownStatus(DEFAULT_CRAWLER_SOURCE);
+    if (cooldown.isLocked) {
+      this.logger.warn(
+        `🛑 [Cooldown Blocked] Yêu cầu sync bị từ chối do nguồn [${cooldown.source}] đang giãn cách. Còn lại ${cooldown.remainingMinutes} phút.`,
+      );
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: `Nguồn [${cooldown.source}] đang trong thời gian giãn cách hạn ngạch (Rate Limit Cooldown). Vui lòng thử lại sau ${cooldown.remainingMinutes} phút.`,
+          source: cooldown.source,
+          remainingMinutes: cooldown.remainingMinutes,
+          lockedUntil: cooldown.lockedUntil,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // 2. Khởi tạo và đồng bộ
     this.logger.log(`Bắt đầu đồng bộ chứng chỉ: ${certId} (force=${force})`);
     const { attemptId, questionIds } = await this.getOrCreateAttempt(certId);
 
