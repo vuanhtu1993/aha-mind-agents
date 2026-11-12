@@ -30,6 +30,7 @@ import {
 } from './cert-crawler.constants';
 import { RawQuestionItem, CrawlQuestionJobData } from './interfaces/cert-crawler.interface';
 import { CertCrawlerCooldownService } from './services/cert-crawler-cooldown.service';
+import { CertCrawlerCampaignService } from './services/cert-crawler-campaign.service';
 import {
   CertQuestion,
   CertQuestionDocument,
@@ -46,7 +47,8 @@ export class CertCrawlerProducerService {
     @InjectModel(CertQuestion.name, AHA_TOOLS_CONNECTION)
     private readonly certQuestionModel: Model<CertQuestionDocument>,
     private readonly cooldownService: CertCrawlerCooldownService,
-  ) {}
+    private readonly campaignService: CertCrawlerCampaignService,
+  ) { }
 
   private getAuthHeaders() {
     const cookie = this.configService.get<string>('HOCCUNGSUSHI_COOKIE');
@@ -83,18 +85,70 @@ export class CertCrawlerProducerService {
     const headers = this.getAuthHeaders();
     const attemptsUrl = `${HOCCUNGSUSHI_BASE_URL}/api/cert/attempts?cert_id=${encodeURIComponent(certId)}`;
 
-    const res = await axios.get(attemptsUrl, { headers });
-    let attempt = res.data?.attempt;
+    let attempt: any = null;
+    try {
+      const res = await axios.get(attemptsUrl, { headers });
+      attempt = res.data?.attempt;
+    } catch (err: any) {
+      const status = err.response?.status || HttpStatus.BAD_GATEWAY;
+      const errorData = err.response?.data?.error || err.message;
+      this.logger.error(`Lỗi khi lấy attempt cho chứng chỉ [${certId}]: ${errorData}`);
+      throw new HttpException(
+        {
+          statusCode: status,
+          message: `Không thể kiểm tra attempt từ nguồn Sushi cho [${certId}]: ${errorData}`,
+          sourceError: err.response?.data,
+        },
+        status,
+      );
+    }
 
     // Nếu chưa có attempt, tự động tạo mới
     if (!attempt?.id) {
       this.logger.log(`Tạo attempt mới cho chứng chỉ: ${certId}`);
-      const createRes = await axios.post(
-        `${HOCCUNGSUSHI_BASE_URL}/api/cert/attempts`,
-        { cert_id: certId, mode: 'practice' },
-        { headers },
-      );
-      attempt = createRes.data?.attempt;
+
+      // 1. Tự động lấy danh mục câu hỏi từ index của cert nếu hệ thống nguồn yêu cầu question_ids
+      let initialQuestionIds: number[] = [];
+      try {
+        const certUrl = `${HOCCUNGSUSHI_BASE_URL}/api/cert/${encodeURIComponent(certId)}`;
+        const certRes = await axios.get(certUrl, { headers });
+        const indexList = certRes.data?.index || [];
+        initialQuestionIds = indexList.map((item: { id: number }) => item.id).filter(Boolean);
+        if (initialQuestionIds.length > 0) {
+          this.logger.log(
+            `Đã lấy được ${initialQuestionIds.length} question_ids từ index của chứng chỉ [${certId}]`,
+          );
+        }
+      } catch (err: any) {
+        this.logger.warn(`Không thể nạp index từ /api/cert/${certId}: ${err.message}`);
+      }
+
+      // 2. Gửi request tạo attempt kèm question_ids
+      try {
+        const payload: Record<string, any> = { cert_id: certId, mode: 'practice' };
+        if (initialQuestionIds.length > 0) {
+          payload.question_ids = initialQuestionIds;
+        }
+
+        const createRes = await axios.post(
+          `${HOCCUNGSUSHI_BASE_URL}/api/cert/attempts`,
+          payload,
+          { headers },
+        );
+        attempt = createRes.data?.attempt;
+      } catch (err: any) {
+        const status = err.response?.status || HttpStatus.BAD_GATEWAY;
+        const errorData = err.response?.data?.error || err.message;
+        this.logger.error(`Lỗi khi tạo attempt mới cho [${certId}]: ${errorData}`);
+        throw new HttpException(
+          {
+            statusCode: status,
+            message: `Nguồn Sushi từ chối tạo bài luyện tập cho [${certId}]: "${errorData}". Hướng dẫn: Bạn cần đăng nhập web hoccungsushi.com và bấm vào chứng chỉ này để bắt đầu bài thi/luyện tập 1 lần để hệ thống nguồn sinh danh sách câu hỏi.`,
+            sourceError: err.response?.data,
+          },
+          status,
+        );
+      }
     }
 
     if (!attempt?.id) {
@@ -102,10 +156,25 @@ export class CertCrawlerProducerService {
     }
 
     // Lấy chi tiết attempt để lấy mảng question_ids chính xác
-    const detailRes = await axios.get(
-      `${HOCCUNGSUSHI_BASE_URL}/api/cert/attempts/${attempt.id}`,
-      { headers },
-    );
+    let detailRes: any = null;
+    try {
+      detailRes = await axios.get(
+        `${HOCCUNGSUSHI_BASE_URL}/api/cert/attempts/${attempt.id}`,
+        { headers },
+      );
+    } catch (err: any) {
+      const status = err.response?.status || HttpStatus.BAD_GATEWAY;
+      const errorData = err.response?.data?.error || err.message;
+      this.logger.error(`Lỗi khi lấy chi tiết attempt [${attempt.id}]: ${errorData}`);
+      throw new HttpException(
+        {
+          statusCode: status,
+          message: `Không thể lấy chi tiết câu hỏi từ attempt [${attempt.id}]: ${errorData}`,
+          sourceError: err.response?.data,
+        },
+        status,
+      );
+    }
 
     const questionIds: number[] =
       detailRes.data?.attempt?.question_ids ||
@@ -163,7 +232,10 @@ export class CertCrawlerProducerService {
     );
 
     if (pendingIds.length === 0) {
+      const campaignId = await this.campaignService.startCampaign(certId, 0);
+      await this.campaignService.finishCampaign(campaignId, certId, 0);
       return {
+        campaignId,
         certId,
         attemptId,
         totalQuestions: questionIds.length,
@@ -172,6 +244,7 @@ export class CertCrawlerProducerService {
       };
     }
 
+    const campaignId = await this.campaignService.startCampaign(certId, pendingIds.length);
     const headers = this.getAuthHeaders();
     const allQuestions: RawQuestionItem[] = [];
 
@@ -179,9 +252,23 @@ export class CertCrawlerProducerService {
     for (let i = 0; i < pendingIds.length; i += CERT_BATCH_SIZE) {
       const batchIds = pendingIds.slice(i, i + CERT_BATCH_SIZE).join(',');
       const batchUrl = `${HOCCUNGSUSHI_BASE_URL}/api/cert/${certId}?ids=${batchIds}`;
-      const batchRes = await axios.get(batchUrl, { headers });
-      const questions: RawQuestionItem[] = batchRes.data?.questions || [];
-      allQuestions.push(...questions);
+      try {
+        const batchRes = await axios.get(batchUrl, { headers });
+        const questions: RawQuestionItem[] = batchRes.data?.questions || [];
+        allQuestions.push(...questions);
+      } catch (err: any) {
+        const status = err.response?.status || HttpStatus.BAD_GATEWAY;
+        const errorData = err.response?.data?.error || err.message;
+        this.logger.error(`Lỗi khi tải batch câu hỏi [${batchIds}]: ${errorData}`);
+        throw new HttpException(
+          {
+            statusCode: status,
+            message: `Lỗi khi tải batch câu hỏi từ nguồn: ${errorData}`,
+            sourceError: err.response?.data,
+          },
+          status,
+        );
+      }
 
       if (i + CERT_BATCH_SIZE < pendingIds.length && process.env.NODE_ENV !== 'test') {
         await new Promise((resolve) => setTimeout(resolve, CERT_BATCH_DELAY_MS));
@@ -195,6 +282,8 @@ export class CertCrawlerProducerService {
         certId,
         attemptId,
         question: q,
+        campaignId,
+        totalInBatch: pendingIds.length,
       } as CrawlQuestionJobData,
       opts: {
         jobId: `${certId}-${q.id}`,
@@ -209,6 +298,7 @@ export class CertCrawlerProducerService {
     this.logger.log(`Đã đẩy ${jobs.length} jobs vào hàng đợi ${CERT_CRAWLER_QUEUE}`);
 
     return {
+      campaignId,
       certId,
       attemptId,
       totalQuestions: questionIds.length,

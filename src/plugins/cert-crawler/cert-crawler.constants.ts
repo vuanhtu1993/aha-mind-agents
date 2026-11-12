@@ -17,3 +17,6 @@ export const CERT_BATCH_SIZE = 20;
 export const CERT_BATCH_DELAY_MS = 250;
 export const CERT_JOB_ATTEMPTS = 5;
 export const CERT_JOB_BACKOFF_DELAY_MS = 5000;
+
+export const CERT_CAMPAIGN_PREFIX = 'cert_crawler:campaign';
+export const CERT_CAMPAIGN_THROTTLE_STEP = 20;

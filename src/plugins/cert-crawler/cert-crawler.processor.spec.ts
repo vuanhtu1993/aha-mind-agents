@@ -12,6 +12,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import axios from 'axios';
 import { CertCrawlerProcessor } from './cert-crawler.processor';
 import { CertCrawlerCooldownService } from './services/cert-crawler-cooldown.service';
+import { CertCrawlerCampaignService } from './services/cert-crawler-campaign.service';
 import { CertQuestion } from '../../infra/database/schemas/cert-question.schema';
 import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
 import { CERT_CRAWLER_QUEUE, DEFAULT_CRAWLER_SOURCE } from './cert-crawler.constants';
@@ -30,6 +31,11 @@ describe('CertCrawlerProcessor', () => {
   const mockCooldownService = {
     setCooldown: jest.fn().mockResolvedValue(undefined),
   };
+  const mockCampaignService = {
+    recordProgress: jest.fn().mockResolvedValue(1),
+    finishCampaign: jest.fn().mockResolvedValue(undefined),
+    failCampaign: jest.fn().mockResolvedValue(undefined),
+  };
   const mockQueue = {
     drain: jest.fn().mockResolvedValue(undefined),
   };
@@ -39,6 +45,8 @@ describe('CertCrawlerProcessor', () => {
     data: {
       certId: 'cca-f',
       attemptId: 5361,
+      campaignId: 'sync-cca-f-12345',
+      totalInBatch: 50,
       question: {
         id: 1142,
         question_no: 1,
@@ -62,6 +70,7 @@ describe('CertCrawlerProcessor', () => {
         { provide: getModelToken(CertQuestion.name, AHA_TOOLS_CONNECTION), useValue: mockModel },
         { provide: getQueueToken(CERT_CRAWLER_QUEUE), useValue: mockQueue },
         { provide: CertCrawlerCooldownService, useValue: mockCooldownService },
+        { provide: CertCrawlerCampaignService, useValue: mockCampaignService },
       ],
     }).compile();
 
@@ -104,6 +113,11 @@ describe('CertCrawlerProcessor', () => {
       },
       { upsert: true, new: true },
     );
+    expect(mockCampaignService.recordProgress).toHaveBeenCalledWith(
+      'sync-cca-f-12345',
+      'cca-f',
+      50,
+    );
   });
 
   it('should trigger circuit breaker, drain queue, and set cooldown when HTTP 429 indicates hourly quota ceiling', async () => {
@@ -117,6 +131,11 @@ describe('CertCrawlerProcessor', () => {
 
     await expect(processor.process(baseMockJob)).rejects.toThrow(/Rate limit 429/);
 
+    expect(mockCampaignService.failCampaign).toHaveBeenCalledWith(
+      'sync-cca-f-12345',
+      'cca-f',
+      expect.stringContaining('trần 200'),
+    );
     expect(mockCooldownService.setCooldown).toHaveBeenCalledWith(DEFAULT_CRAWLER_SOURCE);
     expect(mockQueue.drain).toHaveBeenCalledWith(true);
     expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(

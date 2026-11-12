@@ -24,6 +24,8 @@ export interface CrawlQuestionJobData {
   certId: string;
   attemptId: number;
   question: RawQuestionItem;
+  campaignId?: string;
+  totalInBatch?: number;
 }
 
 export interface RevealResponse {

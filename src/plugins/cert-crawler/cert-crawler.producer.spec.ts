@@ -13,6 +13,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import axios from 'axios';
 import { CertCrawlerProducerService } from './cert-crawler.producer';
 import { CertCrawlerCooldownService } from './services/cert-crawler-cooldown.service';
+import { CertCrawlerCampaignService } from './services/cert-crawler-campaign.service';
 import { CERT_CRAWLER_QUEUE, DEFAULT_CRAWLER_SOURCE } from './cert-crawler.constants';
 import { CertQuestion } from '../../infra/database/schemas/cert-question.schema';
 import { AHA_TOOLS_CONNECTION } from '../../infra/database/database.constants';
@@ -45,6 +46,12 @@ describe('CertCrawlerProducerService', () => {
     }),
     resetCooldown: jest.fn().mockResolvedValue(undefined),
   };
+  const mockCampaignService = {
+    startCampaign: jest.fn().mockResolvedValue('sync-cca-f-12345'),
+    recordProgress: jest.fn().mockResolvedValue(0),
+    finishCampaign: jest.fn().mockResolvedValue(undefined),
+    failCampaign: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -55,6 +62,7 @@ describe('CertCrawlerProducerService', () => {
       lockedUntil: null,
       source: DEFAULT_CRAWLER_SOURCE,
     });
+    mockCampaignService.startCampaign.mockResolvedValue('sync-cca-f-12345');
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -66,6 +74,7 @@ describe('CertCrawlerProducerService', () => {
           useValue: mockModel,
         },
         { provide: CertCrawlerCooldownService, useValue: mockCooldownService },
+        { provide: CertCrawlerCampaignService, useValue: mockCampaignService },
       ],
     }).compile();
 
@@ -155,15 +164,25 @@ describe('CertCrawlerProducerService', () => {
     const result = await service.triggerSync('cca-f');
 
     expect(result).toEqual({
+      campaignId: 'sync-cca-f-12345',
       certId: 'cca-f',
       attemptId: 5361,
       totalQuestions: 3,
       skippedQuestions: 1,
       queuedJobs: 2,
     });
+    expect(mockCampaignService.startCampaign).toHaveBeenCalledWith('cca-f', 2);
     expect(mockQueue.addBulk).toHaveBeenCalledTimes(1);
     const addedJobs = mockQueue.addBulk.mock.calls[0][0];
     expect(addedJobs).toHaveLength(2);
+    expect(addedJobs[0].data).toEqual(
+      expect.objectContaining({
+        certId: 'cca-f',
+        attemptId: 5361,
+        campaignId: 'sync-cca-f-12345',
+        totalInBatch: 2,
+      }),
+    );
     expect(addedJobs[0].opts).toEqual(
       expect.objectContaining({
         jobId: 'cca-f-1143',
@@ -193,12 +212,15 @@ describe('CertCrawlerProducerService', () => {
     const result = await service.triggerSync('cca-f');
 
     expect(result).toEqual({
+      campaignId: 'sync-cca-f-12345',
       certId: 'cca-f',
       attemptId: 5361,
       totalQuestions: 1,
       skippedQuestions: 1,
       queuedJobs: 0,
     });
+    expect(mockCampaignService.startCampaign).toHaveBeenCalledWith('cca-f', 0);
+    expect(mockCampaignService.finishCampaign).toHaveBeenCalledWith('sync-cca-f-12345', 'cca-f', 0);
     expect(mockQueue.addBulk).not.toHaveBeenCalled();
   });
 
@@ -232,13 +254,100 @@ describe('CertCrawlerProducerService', () => {
     const result = await service.triggerSync('cca-f', true);
 
     expect(result).toEqual({
+      campaignId: 'sync-cca-f-12345',
       certId: 'cca-f',
       attemptId: 5361,
       totalQuestions: 2,
       skippedQuestions: 0,
       queuedJobs: 2,
     });
+    expect(mockCampaignService.startCampaign).toHaveBeenCalledWith('cca-f', 2);
     expect(mockModel.find).not.toHaveBeenCalled();
     expect(mockQueue.addBulk).toHaveBeenCalledTimes(1);
+  });
+
+  it('should automatically fetch cert index and pass question_ids when creating a new attempt', async () => {
+    mockedAxios.get.mockImplementation((url: string) => {
+      if (url.includes('/api/cert/attempts?cert_id=cca-new')) {
+        return Promise.resolve({ data: { attempt: null } } as any);
+      }
+      if (url.includes('/api/cert/cca-new?ids=101,102')) {
+        return Promise.resolve({
+          data: {
+            questions: [
+              { id: 101, question_no: 1, topic: 'T1' },
+              { id: 102, question_no: 2, topic: 'T2' },
+            ],
+          },
+        } as any);
+      }
+      if (url.includes('/api/cert/cca-new')) {
+        return Promise.resolve({
+          data: {
+            cert: { id: 'cca-new' },
+            index: [
+              { id: 101, question_no: 1 },
+              { id: 102, question_no: 2 },
+            ],
+          },
+        } as any);
+      }
+      if (url.includes('/api/cert/attempts/9999')) {
+        return Promise.resolve({
+          data: {
+            attempt: { id: 9999, question_ids: [101, 102] },
+          },
+        } as any);
+      }
+      return Promise.reject(new Error('Unexpected URL: ' + url));
+    });
+
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        attempt: { id: 9999, question_ids: [101, 102] },
+      },
+    } as any);
+
+    const result = await service.triggerSync('cca-new');
+
+    expect(result.attemptId).toBe(9999);
+    expect(result.queuedJobs).toBe(2);
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/api/cert/attempts'),
+      {
+        cert_id: 'cca-new',
+        mode: 'practice',
+        question_ids: [101, 102],
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('should transform upstream 400 error (Thiếu question_ids) into a descriptive HttpException', async () => {
+    mockedAxios.get.mockImplementation((url: string) => {
+      if (url.includes('/api/cert/attempts?cert_id=')) {
+        return Promise.resolve({ data: { attempt: null } } as any);
+      }
+      if (url.includes('/api/cert/cca-f-v2')) {
+        return Promise.resolve({ data: { index: [] } } as any);
+      }
+      return Promise.reject(new Error('Unexpected URL: ' + url));
+    });
+    mockedAxios.post.mockRejectedValue({
+      response: {
+        status: 400,
+        data: { error: 'Thiếu question_ids' },
+      },
+      message: 'Request failed with status code 400',
+    });
+
+    await expect(service.triggerSync('cca-f-v2')).rejects.toThrow(HttpException);
+    try {
+      await service.triggerSync('cca-f-v2');
+    } catch (err: any) {
+      expect(err.getStatus()).toBe(HttpStatus.BAD_REQUEST);
+      expect(err.getResponse().message).toContain('Thiếu question_ids');
+      expect(err.getResponse().message).toContain('hoccungsushi.com');
+    }
   });
 });

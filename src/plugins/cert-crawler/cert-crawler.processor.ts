@@ -19,6 +19,7 @@ import {
 } from './cert-crawler.constants';
 import { CrawlQuestionJobData, RevealResponse } from './interfaces/cert-crawler.interface';
 import { CertCrawlerCooldownService } from './services/cert-crawler-cooldown.service';
+import { CertCrawlerCampaignService } from './services/cert-crawler-campaign.service';
 import {
   CertQuestion,
   CertQuestionDocument,
@@ -41,12 +42,13 @@ export class CertCrawlerProcessor extends WorkerHost {
     @InjectQueue(CERT_CRAWLER_QUEUE)
     private readonly crawlerQueue: Queue,
     private readonly cooldownService: CertCrawlerCooldownService,
+    private readonly campaignService: CertCrawlerCampaignService,
   ) {
     super();
   }
 
   async process(job: Job<CrawlQuestionJobData>): Promise<void> {
-    const { certId, attemptId, question } = job.data;
+    const { certId, attemptId, question, campaignId, totalInBatch } = job.data;
     const cookie = this.configService.get<string>('HOCCUNGSUSHI_COOKIE');
 
     const questionDoc: Record<string, any> = {
@@ -106,6 +108,13 @@ export class CertCrawlerProcessor extends WorkerHost {
           this.logger.error(
             `🛑 [Circuit Breaker] Đã chạm trần hạn ngạch của [${DEFAULT_CRAWLER_SOURCE}]. Tiến hành xả hàng đợi và giãn cách 60 phút!`,
           );
+          if (campaignId) {
+            await this.campaignService.failCampaign(
+              campaignId,
+              certId,
+              `Circuit Breaker: Quota limit 200/h reached on ${DEFAULT_CRAWLER_SOURCE}. ${msg}`,
+            );
+          }
           await this.cooldownService.setCooldown(DEFAULT_CRAWLER_SOURCE);
           await this.crawlerQueue.drain(true);
         }
@@ -139,5 +148,9 @@ export class CertCrawlerProcessor extends WorkerHost {
     );
 
     this.logger.log(`✅ [${certId}] Đã lưu câu hỏi #${question.question_no} (ID: ${question.id})`);
+
+    if (campaignId) {
+      await this.campaignService.recordProgress(campaignId, certId, totalInBatch);
+    }
   }
 }
